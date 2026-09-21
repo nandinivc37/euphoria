@@ -8,12 +8,13 @@ from hand_tracking.detector import HandDetector
 from gestures.classifier import GestureClassifier
 from gestures.events import GestureEventManager
 
+from effects.anchors import AnchorExtractor
 from effects.engine import EffectsEngine
 
 
 def main():
     # -----------------------------
-    # 1. Initialize all components
+    # Initialize components
     # -----------------------------
 
     camera = Camera(camera_index=0)
@@ -26,32 +27,29 @@ def main():
     print("Gesture Visual Controller started.")
     print("Press Q to quit.")
 
-    # Used to calculate time between frames
     previous_time = time.perf_counter()
 
     try:
-        # -----------------------------
-        # 2. Main application loop
-        # -----------------------------
-
         while True:
 
-            # Get frame from webcam
+            # -----------------------------
+            # Get camera frame
+            # -----------------------------
+
             frame = camera.read()
 
-            # --------------------------------
-            # 3. Detect hand landmarks
-            # --------------------------------
+            height, width, _ = frame.shape
+
+            # -----------------------------
+            # Detect hand landmarks
+            # -----------------------------
 
             results = detector.process(frame)
-
-            # Convert MediaPipe result into
-            # our own HandLandmarks objects
             hands = detector.extract_landmarks(results)
 
-            # --------------------------------
-            # 4. Calculate frame time
-            # --------------------------------
+            # -----------------------------
+            # Calculate delta time
+            # -----------------------------
 
             current_time = time.perf_counter()
 
@@ -59,70 +57,66 @@ def main():
 
             previous_time = current_time
 
-            # --------------------------------
-            # 5. Recognize gesture
-            # --------------------------------
-
             gesture = None
+
+            # -----------------------------
+            # Process first detected hand
+            # -----------------------------
 
             if hands:
 
-                # For now, use the first detected hand
                 hand = hands[0]
 
-                # Classify the hand pose
+                # Recognize gesture
                 gesture = classifier.classify(hand)
 
-                # --------------------------------
-                # 6. Find hand position
-                # --------------------------------
+                # -----------------------------
+                # Extract named anchors
+                # -----------------------------
 
-                height, width, _ = frame.shape
+                anchor_extractor = AnchorExtractor(
+                    width=width,
+                    height=height,
+                )
 
-                # Landmark 0 = wrist
-                hand_x = int(hand[0].x * width)
-                hand_y = int(hand[0].y * height)
+                anchors = anchor_extractor.from_hand(hand)
 
-                # --------------------------------
-                # 7. Convert gesture into an event
-                # --------------------------------
+                # -----------------------------
+                # Gesture → Event
+                # -----------------------------
 
                 event = event_manager.update(
                     gesture,
-                    hand_x,
-                    hand_y,
+                    anchors,
                 )
 
-                # If this is a NEW gesture,
-                # send it to the effects engine
                 if event:
-
                     effects.handle_event(event)
 
-            # --------------------------------
-            # 8. Update visual effects
-            # --------------------------------
+            # -----------------------------
+            # Update effects
+            # -----------------------------
 
             effects.update(dt)
 
-            # --------------------------------
-            # 9. Draw hand landmarks
-            # --------------------------------
+            # -----------------------------
+            # Draw hand landmarks
+            # -----------------------------
 
             frame = detector.draw_landmarks(
                 frame,
                 results,
             )
 
-            # --------------------------------
-            # 10. Draw visual effects
-            # --------------------------------
+            # -----------------------------
+            # Draw effects
+            # -----------------------------
 
             frame = effects.render(frame)
 
-            # --------------------------------
-            # 11. Display current gesture
-            # --------------------------------
+            # -----------------------------
+            # Display gesture
+            # -----------------------------
 
             if gesture:
 
@@ -136,28 +130,21 @@ def main():
                     2,
                 )
 
-            # --------------------------------
-            # 12. Show final frame
-            # --------------------------------
+            # -----------------------------
+            # Show final frame
+            # -----------------------------
 
             cv2.imshow(
                 "Gesture Visual Controller",
                 frame,
             )
 
-            # Press Q to quit
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
     finally:
-
-        # --------------------------------
-        # 13. Clean everything up
-        # --------------------------------
-
         detector.close()
         camera.release()
-
         cv2.destroyAllWindows()
 
 

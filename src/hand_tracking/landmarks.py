@@ -21,3 +21,27 @@ class HandLandmarks:
 
     def __getitem__(self, index: int) -> Landmark:
         return self.points[index]
+
+    @property
+    def wrist(self) -> Landmark:
+        return self.points[0]
+
+    @property
+    def thumb_tip(self) -> Landmark:
+        return self.points[4]
+
+    @property
+    def index_tip(self) -> Landmark:
+        return self.points[8]
+
+    @property
+    def middle_tip(self) -> Landmark:
+        return self.points[12]
+
+    @property
+    def ring_tip(self) -> Landmark:
+        return self.points[16]
+
+    @property
+    def pinky_tip(self) -> Landmark:
+        return self.points[20]

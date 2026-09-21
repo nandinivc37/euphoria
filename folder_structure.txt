@@ -1,0 +1,55 @@
+gesture-visual-controller/
+│
+├── .venv/
+│
+├── src/
+│   ├── main.py
+│   │
+│   ├── camera/
+│   │   ├── __init__.py
+│   │   └── camera.py
+│   │
+│   ├── hand_tracking/
+│   │   ├── __init__.py
+│   │   ├── detector.py
+│   │   └── landmarks.py
+│   │
+│   ├── gestures/
+│   │   ├── __init__.py
+│   │   ├── features.py
+│   │   ├── classifier.py
+│   │   └── definitions.py
+│   │
+│   ├── effects/
+│   │   ├── __init__.py
+│   │   ├── engine.py
+│   │   ├── particles.py
+│   │   ├── lighting.py
+│   │   └── transitions.py
+│   │
+│   ├── renderer/
+│   │   ├── __init__.py
+│   │   └── renderer.py
+│   │
+│   └── config/
+│       ├── __init__.py
+│       └── settings.py
+│
+├── assets/
+│   ├── backgrounds/
+│   ├── textures/
+│   ├── sounds/
+│   └── models/
+│
+├── tests/
+│   ├── test_camera.py
+│   ├── test_landmarks.py
+│   └── test_gestures.py
+│
+├── notebooks/
+│   └── experimentation.ipynb
+│
+├── requirements.txt
+├── .gitignore
+├── README.md
+└── run.py

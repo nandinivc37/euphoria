@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 import cv2
 
+from effects.anchors import EffectAnchor
+
 
 @dataclass
 class Particle:
@@ -19,11 +21,10 @@ class ParticleSystem:
     def __init__(self):
         self.particles: list[Particle] = []
 
-    def emit(
+    def emit_from_anchor(
         self,
-        x: float,
-        y: float,
-        count: int = 35,
+        anchor: EffectAnchor,
+        count: int = 30,
     ):
         for _ in range(count):
             angle = random.uniform(0, 2 * math.pi)
@@ -31,8 +32,8 @@ class ParticleSystem:
 
             self.particles.append(
                 Particle(
-                    x=x,
-                    y=y,
+                    x=anchor.x,
+                    y=anchor.y,
                     vx=math.cos(angle) * speed,
                     vy=math.sin(angle) * speed,
                     life=random.uniform(0.5, 1.0),
@@ -61,7 +62,6 @@ class ParticleSystem:
                 continue
 
             alpha = max(0.0, min(1.0, particle.life))
-
             brightness = int(255 * alpha)
 
             cv2.circle(
