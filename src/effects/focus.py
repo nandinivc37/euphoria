@@ -93,7 +93,7 @@ class FocusSystem:
         )
 
         # Yellow in OpenCV BGR.
-        color = (0, 255, 255)
+        color = (255, 255, 255)
 
         # Transparent-style glow layer.
         glow_layer = np.zeros_like(frame)

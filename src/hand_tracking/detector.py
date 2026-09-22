@@ -1,5 +1,8 @@
 import cv2
+import math
 import mediapipe as mp
+import numpy as np
+
 from hand_tracking.landmarks import Landmark, HandLandmarks
 
 
@@ -41,7 +44,6 @@ class HandDetector:
             mp.tasks.vision.HandLandmarksConnections.HAND_CONNECTIONS
         )
 
-
     def extract_landmarks(self, results):
         hands = []
 
@@ -59,7 +61,6 @@ class HandDetector:
 
         return hands
 
-    
     def process(self, frame):
         """
         Process one OpenCV BGR frame and return
@@ -67,7 +68,10 @@ class HandDetector:
         """
 
         # OpenCV → RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        rgb_frame = cv2.cvtColor(
+            frame,
+            cv2.COLOR_BGR2RGB,
+        )
 
         # RGB numpy array → MediaPipe Image
         mp_image = mp.Image(
@@ -85,6 +89,41 @@ class HandDetector:
 
         return results
 
+    def draw_star(
+        self,
+        frame,
+        center,
+        outer_radius,
+        color,
+    ):
+        """
+        Draw a filled 5-point star.
+        """
+
+        cx, cy = center
+        points = []
+
+        for i in range(10):
+            angle = -math.pi / 2 + i * math.pi / 5
+
+            if i % 2 == 0:
+                radius = outer_radius
+            else:
+                radius = outer_radius * 0.45
+
+            x = int(cx + radius * math.cos(angle))
+            y = int(cy + radius * math.sin(angle))
+
+            points.append((x, y))
+
+        points = np.array(points, dtype=np.int32)
+
+        cv2.fillPoly(
+            frame,
+            [points],
+            color,
+        )
+
     def draw_landmarks(self, frame, results):
         """
         Draw detected hand landmarks and connections
@@ -93,9 +132,16 @@ class HandDetector:
 
         height, width, _ = frame.shape
 
+        # Colors are written in OpenCV BGR format.
+        white = (255, 255, 255)
+        purple = (255, 0, 190)
+
         for hand_landmarks in results.hand_landmarks:
 
-            # Draw connections
+            # -----------------------------
+            # Draw pink connections
+            # -----------------------------
+
             for connection in self.hand_connections:
                 start = hand_landmarks[connection.start]
                 end = hand_landmarks[connection.end]
@@ -114,23 +160,26 @@ class HandDetector:
                     frame,
                     start_point,
                     end_point,
-                    (0, 255, 0),
-                    2,
+                    white,
+                    1,
+                    cv2.LINE_AA,
                 )
 
-            # Draw landmarks
+            # -----------------------------
+            # Draw purple landmarks
+            # -----------------------------
+
             for landmark in hand_landmarks:
                 point = (
                     int(landmark.x * width),
                     int(landmark.y * height),
                 )
 
-                cv2.circle(
+                self.draw_star(
                     frame,
                     point,
-                    5,
-                    (0, 0, 255),
-                    -1,
+                    6,
+                    purple,
                 )
 
         return frame
