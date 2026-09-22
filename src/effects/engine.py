@@ -5,6 +5,7 @@ from effects.anchors import EffectAnchor
 from effects.beams import BeamSystem
 from effects.focus import FocusSystem
 from effects.particles import ParticleSystem
+from effects.atmosphere import AtmosphereSystem
 
 
 class EffectsEngine:
@@ -12,6 +13,7 @@ class EffectsEngine:
         self.particles = ParticleSystem()
         self.beams = BeamSystem()
         self.focus = FocusSystem()
+        self.atmosphere = AtmosphereSystem()
 
         self.active_gesture = Gesture.UNKNOWN
 
@@ -162,10 +164,8 @@ class EffectsEngine:
         gesture: Gesture,
         anchors: dict[str, EffectAnchor],
     ):
-        # Existing particles.
         self.particles.update(dt)
 
-        # TWO → continuous beams.
         beam_active = (
             gesture == Gesture.TWO
             and "index_tip" in anchors
@@ -179,7 +179,6 @@ class EffectsEngine:
             anchors=anchors,
         )
 
-        # FOCUS → continuous reticle.
         focus_active = (
             gesture in (
                 Gesture.FOCUS,
@@ -203,16 +202,27 @@ class EffectsEngine:
             anchors=anchors,
         )
 
+        atmosphere_active = gesture != Gesture.UNKNOWN
+
+        self.atmosphere.update(
+            dt,
+            active=atmosphere_active,
+            anchors=anchors,
+        )
+
     # --------------------------------
     # Render
     # --------------------------------
 
     def render(self, frame):
 
+        # Background atmosphere first.
+        frame = self.atmosphere.render(frame)
+
         # Continuous beams.
         frame = self.beams.render(frame)
 
-        # Focus reticle.
+        # FOCUS connections.
         frame = self.focus.render(frame)
 
         # Particles on top.
@@ -228,5 +238,6 @@ class EffectsEngine:
         self.particles.clear()
         self.beams.reset()
         self.focus.reset()
+        self.atmosphere.reset()
 
         self.active_gesture = Gesture.UNKNOWN

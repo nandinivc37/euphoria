@@ -95,10 +95,11 @@ class FocusSystem:
         # Yellow in OpenCV BGR.
         color = (0, 255, 255)
 
+        # Transparent-style glow layer.
         glow_layer = np.zeros_like(frame)
 
         # -----------------------------
-        # Draw thumb → fingertip lines
+        # Draw thin glow lines
         # -----------------------------
 
         for name in fingertip_names:
@@ -115,43 +116,40 @@ class FocusSystem:
                 fingertip.y,
             )
 
-            # Broad glow line
+            # Soft outer glow.
             cv2.line(
                 glow_layer,
                 start,
                 end,
                 color,
-                10,
+                6,
                 cv2.LINE_AA,
             )
 
         # -----------------------------
-        # Glow
+        # Blur glow
         # -----------------------------
 
         glow_layer = cv2.GaussianBlur(
             glow_layer,
             (0, 0),
-            sigmaX=10,
-            sigmaY=10,
+            sigmaX=8,
+            sigmaY=8,
         )
 
         frame = cv2.addWeighted(
             frame,
             1.0,
             glow_layer,
-            0.75 * self.strength,
+            0.65 * self.strength,
             0,
         )
 
         # -----------------------------
-        # Core lines
+        # Thin core lines
         # -----------------------------
 
-        core_thickness = max(
-            1,
-            int(2 * self.strength),
-        )
+        core_thickness = 1
 
         for name in fingertip_names:
 

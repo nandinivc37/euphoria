@@ -32,6 +32,9 @@ def main():
     event_manager = GestureEventManager()
     effects = EffectsEngine()
 
+    # Will be created once after we get the first frame
+    anchor_extractor = None
+
     print("Gesture Visual Controller started.")
     print("Press Q to quit.")
 
@@ -46,7 +49,14 @@ def main():
 
             frame = camera.read()
 
-            height, width, _ = frame.shape
+            height, width = frame.shape[:2]
+
+            # Create AnchorExtractor only once
+            if anchor_extractor is None:
+                anchor_extractor = AnchorExtractor(
+                    width=width,
+                    height=height,
+                )
 
             # -----------------------------
             # Detect hand
@@ -80,6 +90,7 @@ def main():
 
             if hands:
 
+                # Currently using only the first detected hand
                 hand = hands[0]
 
                 # Raw classification
@@ -90,11 +101,6 @@ def main():
                 # -----------------------------
                 # Extract named anchors
                 # -----------------------------
-
-                anchor_extractor = AnchorExtractor(
-                    width=width,
-                    height=height,
-                )
 
                 anchors = (
                     anchor_extractor.from_hand(
@@ -123,7 +129,7 @@ def main():
                 effects.handle_event(event)
 
             # -----------------------------
-            # Update particles + beams
+            # Update effects
             # -----------------------------
 
             effects.update(
