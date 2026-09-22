@@ -101,8 +101,8 @@ class GestureClassifier:
             and not middle
             and not ring
             and not pinky
-            and 55.0 <= l_angle <= 125.0
-            and thumb_distance >= 1.0
+            and 35.0 <= l_angle <= 125.0
+            #and thumb_distance >= 1.0
         ):
             return Gesture.FOCUS
         # -----------------------------

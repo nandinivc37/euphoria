@@ -181,9 +181,20 @@ class EffectsEngine:
 
         # FOCUS → continuous reticle.
         focus_active = (
-            gesture == Gesture.FOCUS
-            and "thumb_tip" in anchors
-            and "index_tip" in anchors
+            gesture in (
+                Gesture.FOCUS,
+                Gesture.FIVE,
+            )
+            and all(
+                name in anchors
+                for name in (
+                    "thumb_tip",
+                    "index_tip",
+                    "middle_tip",
+                    "ring_tip",
+                    "pinky_tip",
+                )
+            )
         )
 
         self.focus.update(
