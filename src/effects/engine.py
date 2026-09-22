@@ -2,13 +2,22 @@ from gestures.definitions import Gesture
 from gestures.events import GestureEvent
 
 from effects.anchors import EffectAnchor
+from effects.beams import BeamSystem
+from effects.focus import FocusSystem
 from effects.particles import ParticleSystem
 
 
 class EffectsEngine:
     def __init__(self):
         self.particles = ParticleSystem()
+        self.beams = BeamSystem()
+        self.focus = FocusSystem()
+
         self.active_gesture = Gesture.UNKNOWN
+
+    # --------------------------------
+    # Particle helper
+    # --------------------------------
 
     def _emit(
         self,
@@ -21,6 +30,10 @@ class EffectsEngine:
             count=count,
             color=color,
         )
+
+    # --------------------------------
+    # One-time gesture events
+    # --------------------------------
 
     def handle_event(
         self,
@@ -66,23 +79,16 @@ class EffectsEngine:
 
         elif event.gesture == Gesture.THREE:
 
-            self._emit(
-                anchors["index_tip"],
-                count=30,
-                color=(255, 120, 0),
-            )
-
-            self._emit(
-                anchors["middle_tip"],
-                count=30,
-                color=(255, 120, 0),
-            )
-
-            self._emit(
-                anchors["ring_tip"],
-                count=30,
-                color=(255, 120, 0),
-            )
+            for name in (
+                "index_tip",
+                "middle_tip",
+                "ring_tip",
+            ):
+                self._emit(
+                    anchors[name],
+                    count=30,
+                    color=(255, 120, 0),
+                )
 
         # --------------------------------
         # FOUR
@@ -108,14 +114,12 @@ class EffectsEngine:
 
         elif event.gesture == Gesture.FIVE:
 
-            # Central palm burst
             self._emit(
                 anchors["palm_center"],
                 count=70,
                 color=(0, 220, 255),
             )
 
-            # Five fingertip emitters
             for name in (
                 "thumb_tip",
                 "index_tip",
@@ -130,73 +134,88 @@ class EffectsEngine:
                 )
 
         # --------------------------------
-        # FIST
-        # --------------------------------
-
-        elif event.gesture == Gesture.FIST:
-
-            self.particles.clear()
-
-
-        # #-------------------------------
-        # # SUPER
-        # #-------------------------------
-        
-        # elif event.gesture == Gesture.SUPER:
-
-        #     # self._emit(
-        #     #     anchors["palm_center"],
-        #     #     count=100,
-        #     #     color=(255, 255, 0),
-        #     # )
-
-        #     for name in (
-        #         #"thumb_tip",
-        #         #"index_tip",
-        #         "middle_tip",
-        #         "ring_tip",
-        #         "pinky_tip",
-        #     ):
-        #         self._emit(
-        #             anchors[name],
-        #             count=50,
-        #             color=(255, 255, 0),
-        #         )
-
-
-        #-------------------------------
         # FOCUS
-        #-------------------------------
+        # L-shape
+        # --------------------------------
 
         elif event.gesture == Gesture.FOCUS:
 
-            # self._emit(
-            #     anchors["index_tip"],
-            #     count=50,
-            #     color=(0, 255, 0),
-            # )
+            self._emit(
+                anchors["thumb_tip"],
+                count=35,
+                color=(0, 255, 255),
+            )
 
-            for name in (
-                "thumb_tip",
-                "index_tip",
-                #"middle_tip",
-                #"ring_tip",
-                #"pinky_tip",
-            ):
+            self._emit(
+                anchors["index_tip"],
+                count=35,
+                color=(0, 255, 255),
+            )
 
-                self._emit(
-                    anchors[name],
-                    count=50,
-                    color=(0, 255, 255),
-                )
+    # --------------------------------
+    # Continuous effects
+    # --------------------------------
 
-
-    def update(self, dt: float):
+    def update(
+        self,
+        dt: float,
+        gesture: Gesture,
+        anchors: dict[str, EffectAnchor],
+    ):
+        # Existing particles.
         self.particles.update(dt)
 
+        # TWO → continuous beams.
+        beam_active = (
+            gesture == Gesture.TWO
+            and "index_tip" in anchors
+            and "middle_tip" in anchors
+            and "palm_center" in anchors
+        )
+
+        self.beams.update(
+            dt,
+            active=beam_active,
+            anchors=anchors,
+        )
+
+        # FOCUS → continuous reticle.
+        focus_active = (
+            gesture == Gesture.FOCUS
+            and "thumb_tip" in anchors
+            and "index_tip" in anchors
+        )
+
+        self.focus.update(
+            dt,
+            active=focus_active,
+            anchors=anchors,
+        )
+
+    # --------------------------------
+    # Render
+    # --------------------------------
+
     def render(self, frame):
-        return self.particles.render(frame)
+
+        # Continuous beams.
+        frame = self.beams.render(frame)
+
+        # Focus reticle.
+        frame = self.focus.render(frame)
+
+        # Particles on top.
+        frame = self.particles.render(frame)
+
+        return frame
+
+    # --------------------------------
+    # Reset
+    # --------------------------------
 
     def reset(self):
         self.particles.clear()
+        self.beams.reset()
+        self.focus.reset()
+
         self.active_gesture = Gesture.UNKNOWN
