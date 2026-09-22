@@ -10,69 +10,84 @@ class EffectsEngine:
         self.particles = ParticleSystem()
         self.active_gesture = Gesture.UNKNOWN
 
-    def _emit(self, anchor: EffectAnchor, count: int):
+    def _emit(
+        self,
+        anchor: EffectAnchor,
+        count: int,
+        color: tuple[int, int, int],
+    ):
         self.particles.emit_from_anchor(
             anchor,
             count=count,
+            color=color,
         )
 
-    def handle_event(self, event: GestureEvent):
+    def handle_event(
+        self,
+        event: GestureEvent,
+    ):
         self.active_gesture = event.gesture
 
         anchors = event.anchors
 
-        # -----------------------------
+        # --------------------------------
         # ONE
-        # Index fingertip
-        # -----------------------------
+        # --------------------------------
+
         if event.gesture == Gesture.ONE:
 
             self._emit(
                 anchors["index_tip"],
-                count=30,
+                count=45,
+                color=(255, 120, 0),
             )
 
-        # -----------------------------
+        # --------------------------------
         # TWO
-        # Index + middle fingertips
-        # -----------------------------
+        # --------------------------------
+
         elif event.gesture == Gesture.TWO:
 
             self._emit(
                 anchors["index_tip"],
-                count=30,
+                count=40,
+                color=(255, 0, 255),
             )
 
             self._emit(
                 anchors["middle_tip"],
-                count=30,
+                count=40,
+                color=(255, 0, 255),
             )
 
-        # -----------------------------
+        # --------------------------------
         # THREE
-        # Index + middle + ring
-        # -----------------------------
+        # --------------------------------
+
         elif event.gesture == Gesture.THREE:
 
             self._emit(
                 anchors["index_tip"],
-                count=25,
+                count=30,
+                color=(255, 120, 0),
             )
 
             self._emit(
                 anchors["middle_tip"],
-                count=25,
+                count=30,
+                color=(255, 120, 0),
             )
 
             self._emit(
                 anchors["ring_tip"],
-                count=25,
+                count=30,
+                color=(255, 120, 0),
             )
 
-        # -----------------------------
+        # --------------------------------
         # FOUR
-        # Four fingertips
-        # -----------------------------
+        # --------------------------------
+
         elif event.gesture == Gesture.FOUR:
 
             for name in (
@@ -83,20 +98,24 @@ class EffectsEngine:
             ):
                 self._emit(
                     anchors[name],
-                    count=20,
+                    count=25,
+                    color=(0, 220, 255),
                 )
 
-        # -----------------------------
+        # --------------------------------
         # FIVE
-        # Palm + all fingertips
-        # -----------------------------
+        # --------------------------------
+
         elif event.gesture == Gesture.FIVE:
 
+            # Central palm burst
             self._emit(
                 anchors["palm_center"],
-                count=60,
+                count=70,
+                color=(0, 220, 255),
             )
 
+            # Five fingertip emitters
             for name in (
                 "thumb_tip",
                 "index_tip",
@@ -106,13 +125,14 @@ class EffectsEngine:
             ):
                 self._emit(
                     anchors[name],
-                    count=15,
+                    count=20,
+                    color=(0, 220, 255),
                 )
 
-        # -----------------------------
+        # --------------------------------
         # FIST
-        # Clear all effects
-        # -----------------------------
+        # --------------------------------
+
         elif event.gesture == Gesture.FIST:
 
             self.particles.clear()
