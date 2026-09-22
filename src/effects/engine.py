@@ -137,6 +137,60 @@ class EffectsEngine:
 
             self.particles.clear()
 
+
+        # #-------------------------------
+        # # SUPER
+        # #-------------------------------
+        
+        # elif event.gesture == Gesture.SUPER:
+
+        #     # self._emit(
+        #     #     anchors["palm_center"],
+        #     #     count=100,
+        #     #     color=(255, 255, 0),
+        #     # )
+
+        #     for name in (
+        #         #"thumb_tip",
+        #         #"index_tip",
+        #         "middle_tip",
+        #         "ring_tip",
+        #         "pinky_tip",
+        #     ):
+        #         self._emit(
+        #             anchors[name],
+        #             count=50,
+        #             color=(255, 255, 0),
+        #         )
+
+
+        #-------------------------------
+        # FOCUS
+        #-------------------------------
+
+        elif event.gesture == Gesture.FOCUS:
+
+            # self._emit(
+            #     anchors["index_tip"],
+            #     count=50,
+            #     color=(0, 255, 0),
+            # )
+
+            for name in (
+                "thumb_tip",
+                "index_tip",
+                #"middle_tip",
+                #"ring_tip",
+                #"pinky_tip",
+            ):
+
+                self._emit(
+                    anchors[name],
+                    count=50,
+                    color=(0, 255, 255),
+                )
+
+
     def update(self, dt: float):
         self.particles.update(dt)
 

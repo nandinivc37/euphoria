@@ -83,6 +83,68 @@ def main():
                 # Raw gesture from classifier
                 raw_gesture = classifier.classify(hand)
 
+                states = classifier.finger_states(hand)
+
+                cv2.putText(
+                    frame,
+                    f"Thumb: {states['thumb'].value}",
+                    (20, 80),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),
+                    2,
+                )
+
+                cv2.putText(
+                    frame,
+                    f"Index: {states['index'].value}",
+                    (20, 110),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),
+                    2,
+                )
+
+                cv2.putText(
+                    frame,
+                    f"Middle: {states['middle'].value}",
+                    (20, 140),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),
+                    2,
+                )
+
+                cv2.putText(
+                    frame,
+                    f"Ring: {states['ring'].value}",
+                    (20, 170),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),
+                    2,
+                )
+
+                cv2.putText(
+                    frame,
+                    f"Pinky: {states['pinky'].value}",
+                    (20, 200),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),
+                    2,
+                )
+
+                cv2.putText(
+                    frame,
+                    f"Raw: {raw_gesture.value}",
+                    (20, 230),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),
+                    2,
+                )
+
                 # -----------------------------
                 # Extract hand anchors
                 # -----------------------------

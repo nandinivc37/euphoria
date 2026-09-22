@@ -119,3 +119,113 @@ def thumb_angles(
             hand[4],
         ),
     }
+
+def vector(a: Landmark, b: Landmark) -> tuple[float, float, float]:
+    return (
+        b.x - a.x,
+        b.y - a.y,
+        b.z - a.z,
+    )
+
+
+def vector_angle(
+    v1: tuple[float, float, float],
+    v2: tuple[float, float, float],
+) -> float:
+    dot = sum(
+        a * b
+        for a, b in zip(v1, v2)
+    )
+
+    mag1 = math.sqrt(
+        sum(value * value for value in v1)
+    )
+
+    mag2 = math.sqrt(
+        sum(value * value for value in v2)
+    )
+
+    if mag1 == 0 or mag2 == 0:
+        return 0.0
+
+    cosine = dot / (mag1 * mag2)
+
+    cosine = max(
+        -1.0,
+        min(1.0, cosine),
+    )
+
+    return math.degrees(
+        math.acos(cosine)
+    )
+
+
+def l_shape_angle(
+    hand: HandLandmarks,
+) -> float:
+    """
+    Angle between the index-finger direction
+    and thumb direction.
+    """
+
+    index_vector = vector(
+        hand[5],
+        hand[8],
+    )
+
+    thumb_vector = vector(
+        hand[2],
+        hand[4],
+    )
+
+    return vector_angle(
+        index_vector,
+        thumb_vector,
+    )
+
+
+def thumb_extension_distance(
+    hand: HandLandmarks,
+) -> float:
+    """
+    Thumb-tip distance from the palm center,
+    normalized by palm width.
+    """
+
+    palm_points = [
+        hand[0],
+        hand[5],
+        hand[9],
+        hand[13],
+        hand[17],
+    ]
+
+    palm_x = sum(
+        point.x for point in palm_points
+    ) / len(palm_points)
+
+    palm_y = sum(
+        point.y for point in palm_points
+    ) / len(palm_points)
+
+    palm_center = Landmark(
+        x=palm_x,
+        y=palm_y,
+        z=0.0,
+    )
+
+    palm_width = distance(
+        hand[5],
+        hand[17],
+    )
+
+    if palm_width == 0:
+        return 0.0
+
+    return (
+        distance(
+            hand.thumb_tip,
+            palm_center,
+        )
+        / palm_width
+    )

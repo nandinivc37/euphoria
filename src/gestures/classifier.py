@@ -5,6 +5,13 @@ from gestures.features import (
 )
 from hand_tracking.landmarks import HandLandmarks
 
+from gestures.features import (
+    finger_angles,
+    thumb_angles,
+    l_shape_angle,
+    thumb_extension_distance,
+)
+
 
 EXTENDED_ANGLE_THRESHOLD = 160.0
 
@@ -60,6 +67,9 @@ class GestureClassifier:
 
         states = self.finger_states(hand)
 
+        l_angle = l_shape_angle(hand)
+        thumb_distance = thumb_extension_distance(hand)
+
         thumb = states["thumb"] == FingerState.OPEN
         index = states["index"] == FingerState.OPEN
         middle = states["middle"] == FingerState.OPEN
@@ -80,6 +90,21 @@ class GestureClassifier:
         ):
             return Gesture.FIVE
 
+
+        # --------------------------------
+        # FOCUS / L SHAPE
+        # --------------------------------
+
+        if (
+            thumb
+            and index
+            and not middle
+            and not ring
+            and not pinky
+            and 55.0 <= l_angle <= 125.0
+            and thumb_distance >= 1.0
+        ):
+            return Gesture.FOCUS
         # -----------------------------
         # FOUR
         # Four long fingers open,
@@ -146,6 +171,21 @@ class GestureClassifier:
             and not ring
             and not pinky
         ):
+
+        
             return Gesture.FIST
+
+        if (
+            not thumb
+            and not index
+            and middle
+            and ring
+            and pinky
+        ):
+
+            return Gesture.SUPER
+
+        
+        
 
         return Gesture.UNKNOWN

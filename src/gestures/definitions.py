@@ -16,3 +16,7 @@ class Gesture(Enum):
     THREE = "THREE"
     FOUR = "FOUR"
     FIVE = "FIVE"
+
+    FOCUS = "FOCUS"
+
+    SUPER = "SUPER"
