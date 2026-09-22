@@ -6,7 +6,9 @@ from camera.camera import Camera
 from hand_tracking.detector import HandDetector
 
 from gestures.classifier import GestureClassifier
+from gestures.definitions import Gesture
 from gestures.events import GestureEventManager
+from gestures.stabilizer import GestureStabilizer
 
 from effects.anchors import AnchorExtractor
 from effects.engine import EffectsEngine
@@ -21,6 +23,11 @@ def main():
     detector = HandDetector()
 
     classifier = GestureClassifier()
+    stabilizer = GestureStabilizer(
+        required_frames=5,
+        unknown_frames=8,
+    )
+
     event_manager = GestureEventManager()
     effects = EffectsEngine()
 
@@ -45,6 +52,7 @@ def main():
             # -----------------------------
 
             results = detector.process(frame)
+
             hands = detector.extract_landmarks(results)
 
             # -----------------------------
@@ -54,24 +62,29 @@ def main():
             current_time = time.perf_counter()
 
             dt = current_time - previous_time
-
             previous_time = current_time
 
-            gesture = None
+            # -----------------------------
+            # Default: no hand
+            # -----------------------------
+
+            raw_gesture = Gesture.UNKNOWN
+            anchors = {}
 
             # -----------------------------
-            # Process first detected hand
+            # Process detected hand
             # -----------------------------
 
             if hands:
 
+                # For now, use the first detected hand
                 hand = hands[0]
 
-                # Recognize gesture
-                gesture = classifier.classify(hand)
+                # Raw gesture from classifier
+                raw_gesture = classifier.classify(hand)
 
                 # -----------------------------
-                # Extract named anchors
+                # Extract hand anchors
                 # -----------------------------
 
                 anchor_extractor = AnchorExtractor(
@@ -81,20 +94,28 @@ def main():
 
                 anchors = anchor_extractor.from_hand(hand)
 
-                # -----------------------------
-                # Gesture → Event
-                # -----------------------------
+            # -----------------------------
+            # Stabilize gesture
+            # -----------------------------
 
-                event = event_manager.update(
-                    gesture,
-                    anchors,
-                )
-
-                if event:
-                    effects.handle_event(event)
+            stable_gesture = stabilizer.update(
+                raw_gesture
+            )
 
             # -----------------------------
-            # Update effects
+            # Gesture → Event
+            # -----------------------------
+
+            event = event_manager.update(
+                stable_gesture,
+                anchors,
+            )
+
+            if event:
+                effects.handle_event(event)
+
+            # -----------------------------
+            # Update visual effects
             # -----------------------------
 
             effects.update(dt)
@@ -115,14 +136,14 @@ def main():
             frame = effects.render(frame)
 
             # -----------------------------
-            # Display gesture
+            # Display stable gesture
             # -----------------------------
 
-            if gesture:
+            if stable_gesture != Gesture.UNKNOWN:
 
                 cv2.putText(
                     frame,
-                    f"Gesture: {gesture.value}",
+                    f"Gesture: {stable_gesture.value}",
                     (20, 40),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1,
@@ -138,6 +159,10 @@ def main():
                 "Gesture Visual Controller",
                 frame,
             )
+
+            # -----------------------------
+            # Quit
+            # -----------------------------
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break

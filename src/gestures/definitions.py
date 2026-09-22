@@ -8,8 +8,11 @@ class FingerState(Enum):
 
 class Gesture(Enum):
     UNKNOWN = "UNKNOWN"
+
     FIST = "FIST"
-    OPEN_PALM = "OPEN_PALM"
-    POINT = "POINT"
-    PEACE = "PEACE"
+
+    ONE = "ONE"
+    TWO = "TWO"
     THREE = "THREE"
+    FOUR = "FOUR"
+    FIVE = "FIVE"

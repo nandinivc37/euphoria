@@ -22,10 +22,21 @@ class EffectsEngine:
         anchors = event.anchors
 
         # -----------------------------
-        # PEACE
+        # ONE
+        # Index fingertip
+        # -----------------------------
+        if event.gesture == Gesture.ONE:
+
+            self._emit(
+                anchors["index_tip"],
+                count=30,
+            )
+
+        # -----------------------------
+        # TWO
         # Index + middle fingertips
         # -----------------------------
-        if event.gesture == Gesture.PEACE:
+        elif event.gesture == Gesture.TWO:
 
             self._emit(
                 anchors["index_tip"],
@@ -59,10 +70,27 @@ class EffectsEngine:
             )
 
         # -----------------------------
-        # OPEN PALM
+        # FOUR
+        # Four fingertips
+        # -----------------------------
+        elif event.gesture == Gesture.FOUR:
+
+            for name in (
+                "index_tip",
+                "middle_tip",
+                "ring_tip",
+                "pinky_tip",
+            ):
+                self._emit(
+                    anchors[name],
+                    count=20,
+                )
+
+        # -----------------------------
+        # FIVE
         # Palm + all fingertips
         # -----------------------------
-        elif event.gesture == Gesture.OPEN_PALM:
+        elif event.gesture == Gesture.FIVE:
 
             self._emit(
                 anchors["palm_center"],
