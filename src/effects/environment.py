@@ -6,8 +6,8 @@ class EnvironmentSystem:
     """
     Procedural 2D architectural environment.
 
-    The static scene is cached so the environment does not
-    need to be rebuilt every frame.
+    The environment is built once for a given canvas size
+    and reused every frame for performance.
     """
 
     def __init__(self):
@@ -19,7 +19,7 @@ class EnvironmentSystem:
         self.time += dt
 
     # ---------------------------------
-    # Point helper
+    # Pointed arch helper
     # ---------------------------------
 
     def _pointed_arch_points(
@@ -31,11 +31,6 @@ class EnvironmentSystem:
         half_width: int,
         samples: int = 24,
     ):
-        """
-        Create a smooth pointed-arch outline using two
-        quadratic Bezier curves.
-        """
-
         left_base = (
             center_x - half_width,
             bottom_y,
@@ -61,24 +56,40 @@ class EnvironmentSystem:
             peak_y,
         )
 
-        points = []
+        points = [
+            left_base,
+            left_spring,
+        ]
 
-        # Left vertical side
-        points.append(left_base)
-        points.append(left_spring)
+        # Left side of arch
+        p0 = np.array(
+            left_spring,
+            dtype=np.float32,
+        )
 
-        # Left curve → peak
-        p0 = np.array(left_spring, dtype=np.float32)
         p1 = np.array(
             (
-                center_x - int(half_width * 0.72),
-                peak_y + int((spring_y - peak_y) * 0.10),
+                center_x
+                - int(half_width * 0.72),
+                peak_y
+                + int(
+                    (spring_y - peak_y)
+                    * 0.12
+                ),
             ),
             dtype=np.float32,
         )
-        p2 = np.array(peak, dtype=np.float32)
 
-        for t in np.linspace(0.0, 1.0, samples):
+        p2 = np.array(
+            peak,
+            dtype=np.float32,
+        )
+
+        for t in np.linspace(
+            0.0,
+            1.0,
+            samples,
+        ):
             point = (
                 (1 - t) ** 2 * p0
                 + 2 * (1 - t) * t * p1
@@ -92,21 +103,37 @@ class EnvironmentSystem:
                 )
             )
 
-        # Peak
         points.append(peak)
 
-        # Right curve → spring
-        p0 = np.array(peak, dtype=np.float32)
+        # Right side of arch
+        p0 = np.array(
+            peak,
+            dtype=np.float32,
+        )
+
         p1 = np.array(
             (
-                center_x + int(half_width * 0.72),
-                peak_y + int((spring_y - peak_y) * 0.10),
+                center_x
+                + int(half_width * 0.72),
+                peak_y
+                + int(
+                    (spring_y - peak_y)
+                    * 0.12
+                ),
             ),
             dtype=np.float32,
         )
-        p2 = np.array(right_spring, dtype=np.float32)
 
-        for t in np.linspace(0.0, 1.0, samples):
+        p2 = np.array(
+            right_spring,
+            dtype=np.float32,
+        )
+
+        for t in np.linspace(
+            0.0,
+            1.0,
+            samples,
+        ):
             point = (
                 (1 - t) ** 2 * p0
                 + 2 * (1 - t) * t * p1
@@ -120,13 +147,17 @@ class EnvironmentSystem:
                 )
             )
 
-        points.append(right_spring)
-        points.append(right_base)
+        points.extend(
+            [
+                right_spring,
+                right_base,
+            ]
+        )
 
         return points
 
     # ---------------------------------
-    # Build static scene
+    # Build static environment
     # ---------------------------------
 
     def _build_environment(
@@ -135,19 +166,27 @@ class EnvironmentSystem:
         height: int,
     ):
         environment = np.zeros(
-            (height, width, 3),
+            (
+                height,
+                width,
+                3,
+            ),
             dtype=np.uint8,
         )
 
         center_x = width // 2
 
+        floor_y = int(
+            height * 0.77
+        )
+
         # ---------------------------------
-        # Background gradient
+        # Dark base
         # ---------------------------------
 
         gradient = np.linspace(
-            7,
-            20,
+            5,
+            18,
             height,
             dtype=np.uint8,
         ).reshape(height, 1)
@@ -160,98 +199,142 @@ class EnvironmentSystem:
             255,
         )
 
-        floor_y = int(height * 0.77)
-
         # ---------------------------------
-        # Main wall
+        # Back wall
         # ---------------------------------
 
         cv2.rectangle(
             environment,
-            (0, int(height * 0.04)),
-            (width, floor_y),
-            (15, 9, 21),
+            (
+                0,
+                int(height * 0.04),
+            ),
+            (
+                width,
+                floor_y,
+            ),
+            (13, 8, 19),
             -1,
         )
 
         # ---------------------------------
-        # Central ambient illumination
+        # Central wall illumination
         # ---------------------------------
 
-        glow = np.zeros_like(environment)
+        wall_light = np.zeros_like(
+            environment
+        )
 
         cv2.ellipse(
-            glow,
+            wall_light,
             (
                 center_x,
-                int(height * 0.42),
+                int(height * 0.43),
             ),
             (
-                int(width * 0.34),
-                int(height * 0.40),
+                int(width * 0.31),
+                int(height * 0.37),
             ),
             0,
             0,
             360,
-            (38, 12, 52),
+            (34, 10, 45),
             -1,
         )
 
-        glow = cv2.GaussianBlur(
-            glow,
+        wall_light = cv2.GaussianBlur(
+            wall_light,
             (0, 0),
-            18,
+            28,
         )
 
         environment = cv2.add(
             environment,
-            glow,
+            wall_light,
         )
 
         # ---------------------------------
-        # Far wall divisions
+        # Side wall darkness
         # ---------------------------------
 
-        wall_line = (31, 17, 36)
+        side_shadow = np.zeros_like(
+            environment
+        )
 
-        for ratio in (
-            0.13,
-            0.20,
-            0.27,
-        ):
-            y = int(height * ratio)
+        cv2.rectangle(
+            side_shadow,
+            (
+                0,
+                0,
+            ),
+            (
+                int(width * 0.22),
+                height,
+            ),
+            (0, 0, 0),
+            -1,
+        )
 
-            cv2.line(
-                environment,
-                (0, y),
-                (width, y),
-                wall_line,
-                1,
-                cv2.LINE_AA,
-            )
+        cv2.rectangle(
+            side_shadow,
+            (
+                int(width * 0.78),
+                0,
+            ),
+            (
+                width,
+                height,
+            ),
+            (0, 0, 0),
+            -1,
+        )
+
+        side_shadow = cv2.GaussianBlur(
+            side_shadow,
+            (0, 0),
+            45,
+        )
+
+        environment = cv2.addWeighted(
+            environment,
+            1.0,
+            side_shadow,
+            0.12,
+            0,
+        )
 
         # ---------------------------------
-        # Main outer columns
+        # Outer columns
         # ---------------------------------
 
-        outer_column = (48, 25, 51)
-        outer_highlight = (73, 37, 76)
+        outer_column = (
+            46,
+            24,
+            50,
+        )
 
-        outer_positions = (
-            0.07,
-            0.93,
+        outer_highlight = (
+            70,
+            35,
+            74,
         )
 
         outer_width = max(
             8,
-            int(width * 0.025),
+            int(width * 0.023),
         )
 
-        for position in outer_positions:
+        for position in (
+            0.075,
+            0.925,
+        ):
+            x = int(
+                width * position
+            )
 
-            x = int(width * position)
-
-            top = int(height * 0.12)
+            top = int(
+                height * 0.12
+            )
 
             cv2.rectangle(
                 environment,
@@ -283,33 +366,32 @@ class EnvironmentSystem:
             )
 
         # ---------------------------------
-        # Secondary columns
+        # Inner columns
         # ---------------------------------
 
-        secondary_column = (33, 18, 40)
-
-        secondary_positions = (
-            0.18,
-            0.30,
-            0.70,
-            0.82,
+        inner_column = (
+            31,
+            17,
+            37,
         )
 
-        for position in secondary_positions:
-
-            x = int(width * position)
+        for position, top_ratio in (
+            (0.18, 0.19),
+            (0.30, 0.26),
+            (0.70, 0.26),
+            (0.82, 0.19),
+        ):
+            x = int(
+                width * position
+            )
 
             column_width = max(
                 4,
-                int(width * 0.012),
+                int(width * 0.011),
             )
 
             top = int(
-                height * (
-                    0.18
-                    if position in (0.18, 0.82)
-                    else 0.25
-                )
+                height * top_ratio
             )
 
             cv2.rectangle(
@@ -322,7 +404,7 @@ class EnvironmentSystem:
                     x + column_width // 2,
                     floor_y,
                 ),
-                secondary_column,
+                inner_column,
                 -1,
             )
 
@@ -330,25 +412,38 @@ class EnvironmentSystem:
         # Side alcoves
         # ---------------------------------
 
-        alcove_color = (22, 11, 28)
+        alcove_color = (
+            17,
+            9,
+            22,
+        )
+
+        alcove_edge = (
+            49,
+            24,
+            53,
+        )
 
         alcove_width = int(
-            width * 0.13
+            width * 0.12
         )
 
         alcove_top = int(
-            height * 0.34
+            height * 0.35
         )
-
-        alcove_bottom = floor_y
 
         for x in (
             int(width * 0.18),
             int(width * 0.82),
         ):
 
-            left = x - alcove_width // 2
-            right = x + alcove_width // 2
+            left = (
+                x - alcove_width // 2
+            )
+
+            right = (
+                x + alcove_width // 2
+            )
 
             cv2.rectangle(
                 environment,
@@ -358,7 +453,7 @@ class EnvironmentSystem:
                 ),
                 (
                     right,
-                    alcove_bottom,
+                    floor_y,
                 ),
                 alcove_color,
                 -1,
@@ -372,7 +467,10 @@ class EnvironmentSystem:
                 ),
                 (
                     alcove_width // 2,
-                    int(alcove_width * 0.55),
+                    int(
+                        alcove_width
+                        * 0.56
+                    ),
                 ),
                 0,
                 180,
@@ -389,46 +487,45 @@ class EnvironmentSystem:
                 ),
                 (
                     alcove_width // 2,
-                    int(alcove_width * 0.55),
+                    int(
+                        alcove_width
+                        * 0.56
+                    ),
                 ),
                 0,
                 180,
                 360,
-                (52, 27, 57),
+                alcove_edge,
                 2,
                 cv2.LINE_AA,
             )
 
         # ---------------------------------
-        # Grand central pointed arch
+        # Main outer arch
         # ---------------------------------
 
-        arch_bottom = int(
-            height * 0.78
+        outer_arch = (
+            self._pointed_arch_points(
+                center_x=center_x,
+                bottom_y=int(
+                    height * 0.78
+                ),
+                spring_y=int(
+                    height * 0.44
+                ),
+                peak_y=int(
+                    height * 0.08
+                ),
+                half_width=int(
+                    width * 0.29
+                ),
+            )
         )
 
-        arch_spring = int(
-            height * 0.44
+        # Arch glow
+        arch_glow = np.zeros_like(
+            environment
         )
-
-        arch_peak = int(
-            height * 0.10
-        )
-
-        arch_half_width = int(
-            width * 0.29
-        )
-
-        outer_arch = self._pointed_arch_points(
-            center_x,
-            arch_bottom,
-            arch_spring,
-            arch_peak,
-            arch_half_width,
-        )
-
-        # Soft arch glow
-        arch_glow = np.zeros_like(environment)
 
         cv2.polylines(
             arch_glow,
@@ -439,7 +536,11 @@ class EnvironmentSystem:
                 )
             ],
             False,
-            (91, 36, 108),
+            (
+                82,
+                31,
+                99,
+            ),
             7,
             cv2.LINE_AA,
         )
@@ -447,7 +548,7 @@ class EnvironmentSystem:
         arch_glow = cv2.GaussianBlur(
             arch_glow,
             (0, 0),
-            9,
+            8,
         )
 
         environment = cv2.add(
@@ -455,7 +556,6 @@ class EnvironmentSystem:
             arch_glow,
         )
 
-        # Main arch
         cv2.polylines(
             environment,
             [
@@ -465,81 +565,91 @@ class EnvironmentSystem:
                 )
             ],
             False,
-            (69, 35, 73),
+            (
+                67,
+                35,
+                72,
+            ),
             4,
             cv2.LINE_AA,
         )
 
         # ---------------------------------
-        # Second arch layer
+        # Second arch
         # ---------------------------------
 
-        inner_arch = self._pointed_arch_points(
-            center_x,
-            int(height * 0.78),
-            int(height * 0.49),
-            int(height * 0.17),
-            int(width * 0.23),
+        second_arch = (
+            self._pointed_arch_points(
+                center_x=center_x,
+                bottom_y=int(
+                    height * 0.78
+                ),
+                spring_y=int(
+                    height * 0.50
+                ),
+                peak_y=int(
+                    height * 0.15
+                ),
+                half_width=int(
+                    width * 0.235
+                ),
+            )
         )
 
         cv2.polylines(
             environment,
             [
                 np.array(
-                    inner_arch,
+                    second_arch,
                     dtype=np.int32,
                 )
             ],
             False,
-            (49, 25, 53),
+            (
+                48,
+                24,
+                52,
+            ),
             2,
             cv2.LINE_AA,
         )
 
         # ---------------------------------
-        # Central deep portal
+        # Central portal
         # ---------------------------------
 
         portal_width = int(
-            width * 0.245
+            width * 0.205
         )
 
         portal_left = (
-            center_x - portal_width // 2
+            center_x
+            - portal_width // 2
         )
 
         portal_right = (
-            center_x + portal_width // 2
+            center_x
+            + portal_width // 2
         )
 
-        portal_top = int(
-            height * 0.29
+        portal_bottom = floor_y
+
+        portal_arch = (
+            self._pointed_arch_points(
+                center_x=center_x,
+                bottom_y=portal_bottom,
+                spring_y=int(
+                    height * 0.50
+                ),
+                peak_y=int(
+                    height * 0.24
+                ),
+                half_width=portal_width // 2,
+                samples=18,
+            )
         )
 
-        # Portal interior
-        cv2.rectangle(
-            environment,
-            (
-                portal_left,
-                portal_top,
-            ),
-            (
-                portal_right,
-                floor_y,
-            ),
-            (2, 1, 5),
-            -1,
-        )
-
-        portal_arch = self._pointed_arch_points(
-            center_x,
-            floor_y,
-            int(height * 0.50),
-            int(height * 0.26),
-            portal_width // 2,
-            samples=18,
-        )
-
+        # Dark portal interior
         cv2.fillPoly(
             environment,
             [
@@ -548,10 +658,13 @@ class EnvironmentSystem:
                     dtype=np.int32,
                 )
             ],
-            (2, 1, 5),
+            (
+                2,
+                1,
+                5,
+            ),
         )
 
-        # Portal edges
         cv2.polylines(
             environment,
             [
@@ -561,29 +674,228 @@ class EnvironmentSystem:
                 )
             ],
             False,
-            (55, 26, 59),
+            (
+                56,
+                27,
+                61,
+            ),
             2,
             cv2.LINE_AA,
         )
 
         # ---------------------------------
-        # Vertical portal light accents
+        # Portal light source
         # ---------------------------------
 
-        portal_highlight = (83, 40, 87)
+        portal_light = np.zeros_like(
+            environment
+        )
+
+        cv2.ellipse(
+            portal_light,
+            (
+                center_x,
+                int(height * 0.56),
+            ),
+            (
+                int(width * 0.095),
+                int(height * 0.17),
+            ),
+            0,
+            0,
+            360,
+            (
+                70,
+                20,
+                78,
+            ),
+            -1,
+        )
+
+        portal_light = cv2.GaussianBlur(
+            portal_light,
+            (0, 0),
+            18,
+        )
+
+        environment = cv2.add(
+            environment,
+            portal_light,
+        )
+
+        # Brighter inner core
+        core_light = np.zeros_like(
+            environment
+        )
+
+        cv2.ellipse(
+            core_light,
+            (
+                center_x,
+                int(height * 0.55),
+            ),
+            (
+                int(width * 0.045),
+                int(height * 0.11),
+            ),
+            0,
+            0,
+            360,
+            (
+                52,
+                10,
+                57,
+            ),
+            -1,
+        )
+
+        core_light = cv2.GaussianBlur(
+            core_light,
+            (0, 0),
+            12,
+        )
+
+        environment = cv2.add(
+            environment,
+            core_light,
+        )
+
+        # ---------------------------------
+        # Light rays from portal
+        # ---------------------------------
+
+        light_rays = np.zeros_like(
+            environment
+        )
+
+        ray_color = (
+            42,
+            13,
+            47,
+        )
+
+        ray_top = int(
+            height * 0.30
+        )
+
+        ray_bottom = int(
+            height * 0.69
+        )
+
+        ray_width = int(
+            width * 0.09
+        )
+
+        rays = (
+            (
+                center_x
+                - ray_width,
+                center_x
+                - int(width * 0.015),
+            ),
+            (
+                center_x
+                + int(width * 0.015),
+                center_x
+                + ray_width,
+            ),
+        )
+
+        for left_x, right_x in rays:
+
+            polygon = np.array(
+                [
+                    (
+                        left_x,
+                        ray_top,
+                    ),
+                    (
+                        right_x,
+                        ray_top,
+                    ),
+                    (
+                        center_x
+                        + int(
+                            (
+                                right_x
+                                - center_x
+                            )
+                            * 0.42
+                        ),
+                        ray_bottom,
+                    ),
+                    (
+                        center_x
+                        + int(
+                            (
+                                left_x
+                                - center_x
+                            )
+                            * 0.42
+                        ),
+                        ray_bottom,
+                    ),
+                ],
+                dtype=np.int32,
+            )
+
+            cv2.fillPoly(
+                light_rays,
+                [polygon],
+                ray_color,
+            )
+
+        light_rays = cv2.GaussianBlur(
+            light_rays,
+            (0, 0),
+            6,
+        )
+
+        environment = cv2.add(
+            environment,
+            light_rays,
+        )
+
+        # ---------------------------------
+        # Receding portal depth lines
+        # ---------------------------------
+
+        depth_color = (
+            25,
+            12,
+            29,
+        )
+
+        inner_width = int(
+            portal_width * 0.62
+        )
+
+        inner_top = int(
+            height * 0.39
+        )
+
+        inner_left = (
+            center_x
+            - inner_width // 2
+        )
+
+        inner_right = (
+            center_x
+            + inner_width // 2
+        )
 
         cv2.line(
             environment,
             (
                 portal_left,
-                int(height * 0.50),
+                portal_bottom,
             ),
             (
-                portal_left,
-                floor_y,
+                inner_left,
+                inner_top,
             ),
-            portal_highlight,
-            1,
+            depth_color,
+            2,
             cv2.LINE_AA,
         )
 
@@ -591,14 +903,14 @@ class EnvironmentSystem:
             environment,
             (
                 portal_right,
-                int(height * 0.50),
+                portal_bottom,
             ),
             (
-                portal_right,
-                floor_y,
+                inner_right,
+                inner_top,
             ),
-            portal_highlight,
-            1,
+            depth_color,
+            2,
             cv2.LINE_AA,
         )
 
@@ -606,14 +918,18 @@ class EnvironmentSystem:
         # Ceiling ribs
         # ---------------------------------
 
-        ceiling_color = (34, 18, 40)
+        ceiling_color = (
+            28,
+            15,
+            34,
+        )
 
         ceiling_top = int(
             height * 0.04
         )
 
         ceiling_center = int(
-            height * 0.30
+            height * 0.31
         )
 
         for x in np.linspace(
@@ -638,40 +954,122 @@ class EnvironmentSystem:
             )
 
         # ---------------------------------
-        # Floor
+        # Floor base
         # ---------------------------------
 
         cv2.rectangle(
             environment,
-            (0, floor_y),
-            (width, height),
-            (11, 7, 15),
+            (
+                0,
+                floor_y,
+            ),
+            (
+                width,
+                height,
+            ),
+            (
+                9,
+                6,
+                13,
+            ),
             -1,
         )
 
-        floor_color = (42, 22, 47)
+        # ---------------------------------
+        # Portal light on floor
+        # ---------------------------------
 
-        # Horizontal depth bands
-        for i in range(7):
+        floor_light = np.zeros_like(
+            environment
+        )
 
-            t = i / 7
+        floor_polygon = np.array(
+            [
+                (
+                    center_x
+                    - int(width * 0.035),
+                    floor_y,
+                ),
+                (
+                    center_x
+                    + int(width * 0.035),
+                    floor_y,
+                ),
+                (
+                    center_x
+                    + int(width * 0.17),
+                    height,
+                ),
+                (
+                    center_x
+                    - int(width * 0.17),
+                    height,
+                ),
+            ],
+            dtype=np.int32,
+        )
+
+        cv2.fillPoly(
+            floor_light,
+            [floor_polygon],
+            (
+                24,
+                8,
+                28,
+            ),
+        )
+
+        floor_light = cv2.GaussianBlur(
+            floor_light,
+            (0, 0),
+            15,
+        )
+
+        environment = cv2.add(
+            environment,
+            floor_light,
+        )
+
+        # ---------------------------------
+        # Subtle floor architecture
+        # ---------------------------------
+
+        floor_line = (
+            30,
+            15,
+            35,
+        )
+
+        # Fewer horizontal lines
+        for i in range(5):
+
+            t = i / 5
 
             y = int(
                 floor_y
-                + (height - floor_y)
-                * (t ** 0.60)
+                + (
+                    height
+                    - floor_y
+                )
+                * (t ** 0.62)
             )
 
             cv2.line(
                 environment,
-                (0, y),
-                (width, y),
-                floor_color,
+                (
+                    0,
+                    y,
+                ),
+                (
+                    width,
+                    y,
+                ),
+                floor_line,
                 1,
                 cv2.LINE_AA,
             )
 
-        # Perspective lines
+        # Fewer perspective divisions
         vanishing_point = (
             center_x,
             floor_y,
@@ -680,7 +1078,7 @@ class EnvironmentSystem:
         for x in np.linspace(
             0,
             width,
-            15,
+            9,
         ):
 
             cv2.line(
@@ -690,7 +1088,7 @@ class EnvironmentSystem:
                     int(x),
                     height,
                 ),
-                floor_color,
+                floor_line,
                 1,
                 cv2.LINE_AA,
             )
@@ -703,16 +1101,60 @@ class EnvironmentSystem:
                 center_x,
                 height,
             ),
-            (58, 28, 62),
-            2,
+            (
+                51,
+                24,
+                56,
+            ),
+            1,
             cv2.LINE_AA,
         )
 
         # ---------------------------------
-        # Return cached static scene
+        # Soft foreground darkening
         # ---------------------------------
 
+        vignette = np.zeros_like(
+            environment
+        )
+
+        cv2.rectangle(
+            vignette,
+            (
+                0,
+                0,
+            ),
+            (
+                width,
+                height,
+            ),
+            (
+                0,
+                0,
+                0,
+            ),
+            -1,
+        )
+
+        vignette = cv2.GaussianBlur(
+            vignette,
+            (0, 0),
+            35,
+        )
+
+        environment = cv2.addWeighted(
+            environment,
+            1.0,
+            vignette,
+            0.07,
+            0,
+        )
+
         return environment
+
+    # ---------------------------------
+    # Render cached scene
+    # ---------------------------------
 
     def render(self, frame):
         height, width = frame.shape[:2]
@@ -736,6 +1178,10 @@ class EnvironmentSystem:
             self.cached_size = current_size
 
         return self.cached_environment.copy()
+
+    # ---------------------------------
+    # Reset
+    # ---------------------------------
 
     def reset(self):
         self.time = 0.0
