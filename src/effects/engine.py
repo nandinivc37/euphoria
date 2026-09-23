@@ -6,6 +6,7 @@ from effects.beams import BeamSystem
 from effects.focus import FocusSystem
 from effects.particles import ParticleSystem
 from effects.atmosphere import AtmosphereSystem
+from effects.environment import EnvironmentSystem
 
 
 class EffectsEngine:
@@ -14,6 +15,7 @@ class EffectsEngine:
         self.beams = BeamSystem()
         self.focus = FocusSystem()
         self.atmosphere = AtmosphereSystem()
+        self.environment = EnvironmentSystem()
 
         self.active_gesture = Gesture.UNKNOWN
 
@@ -62,6 +64,9 @@ class EffectsEngine:
         # --------------------------------
 
         elif event.gesture == Gesture.TWO:
+
+            # No beams.
+            # Only particles in the world.
 
             self._emit(
                 anchors["index_tip"],
@@ -137,7 +142,6 @@ class EffectsEngine:
 
         # --------------------------------
         # FOCUS
-        # L-shape
         # --------------------------------
 
         elif event.gesture == Gesture.FOCUS:
@@ -162,22 +166,28 @@ class EffectsEngine:
         self,
         dt: float,
         gesture: Gesture,
-        anchors: dict[str, EffectAnchor],
+        world_anchors: dict[str, EffectAnchor],
+        camera_anchors: dict[str, EffectAnchor],
     ):
+        # Environment
+        self.environment.update(dt)
+
+        # Particles live in world
         self.particles.update(dt)
 
-        beam_active = (
-            gesture == Gesture.TWO
-            and "index_tip" in anchors
-            and "middle_tip" in anchors
-            and "palm_center" in anchors
-        )
+        # --------------------------------
+        # Beams disabled
+        # --------------------------------
 
         self.beams.update(
             dt,
-            active=beam_active,
-            anchors=anchors,
+            active=False,
+            anchors={},
         )
+
+        # --------------------------------
+        # Focus web lives in camera
+        # --------------------------------
 
         focus_active = (
             gesture in (
@@ -185,7 +195,7 @@ class EffectsEngine:
                 Gesture.FIVE,
             )
             and all(
-                name in anchors
+                name in camera_anchors
                 for name in (
                     "thumb_tip",
                     "index_tip",
@@ -199,34 +209,55 @@ class EffectsEngine:
         self.focus.update(
             dt,
             active=focus_active,
-            anchors=anchors,
+            anchors=camera_anchors,
         )
 
-        atmosphere_active = gesture != Gesture.UNKNOWN
+        # --------------------------------
+        # Atmosphere
+        # --------------------------------
+
+        atmosphere_active = (
+            gesture != Gesture.UNKNOWN
+        )
 
         self.atmosphere.update(
             dt,
             active=atmosphere_active,
-            anchors=anchors,
+            anchors=world_anchors,
         )
 
     # --------------------------------
-    # Render
+    # Render WORLD
     # --------------------------------
 
-    def render(self, frame):
+    def render_world(self, frame):
 
-        # Background atmosphere first.
-        frame = self.atmosphere.render(frame)
+        # 1. Architecture
+        frame = self.environment.render(
+            frame
+        )
 
-        # Continuous beams.
-        frame = self.beams.render(frame)
+        # 2. Atmosphere
+        frame = self.atmosphere.render(
+            frame
+        )
 
-        # FOCUS connections.
-        frame = self.focus.render(frame)
+        # 3. Particles
+        frame = self.particles.render(
+            frame
+        )
 
-        # Particles on top.
-        frame = self.particles.render(frame)
+        return frame
+
+    # --------------------------------
+    # Render CAMERA
+    # --------------------------------
+
+    def render_camera(self, frame):
+        # Only the hand web belongs here.
+        frame = self.focus.render(
+            frame
+        )
 
         return frame
 
@@ -239,5 +270,6 @@ class EffectsEngine:
         self.beams.reset()
         self.focus.reset()
         self.atmosphere.reset()
+        self.environment.reset()
 
         self.active_gesture = Gesture.UNKNOWN

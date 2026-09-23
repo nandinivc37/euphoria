@@ -20,6 +20,7 @@ OUTPUT_HEIGHT = 900
 
 CAMERA_HEIGHT = OUTPUT_HEIGHT // 2
 SEPARATOR_HEIGHT = 3
+
 WORLD_HEIGHT = (
     OUTPUT_HEIGHT
     - CAMERA_HEIGHT
@@ -32,7 +33,10 @@ def main():
     # Initialize components
     # -----------------------------
 
-    camera = Camera(camera_index=0)
+    camera = Camera(
+        camera_index=0
+    )
+
     detector = HandDetector()
 
     classifier = GestureClassifier()
@@ -43,18 +47,26 @@ def main():
     )
 
     event_manager = GestureEventManager()
+
     effects = EffectsEngine()
 
     anchor_extractor = None
 
-    print("Gesture Visual Controller started.")
-    print("Press Q to quit.")
+    print(
+        "Gesture Visual Controller started."
+    )
+
+    print(
+        "Press Q to quit."
+    )
 
     # -----------------------------
     # Create output window
     # -----------------------------
 
-    window_name = "Gesture Visual Controller"
+    window_name = (
+        "Gesture Visual Controller"
+    )
 
     cv2.namedWindow(
         window_name,
@@ -67,9 +79,12 @@ def main():
         OUTPUT_HEIGHT,
     )
 
-    previous_time = time.perf_counter()
+    previous_time = (
+        time.perf_counter()
+    )
 
     try:
+
         while True:
 
             # -----------------------------
@@ -78,18 +93,22 @@ def main():
 
             camera_frame = camera.read()
 
-            camera_height_original, camera_width_original = (
-                camera_frame.shape[:2]
-            )
+            (
+                camera_height_original,
+                camera_width_original,
+            ) = camera_frame.shape[:2]
 
             # -----------------------------
             # Create anchor extractor once
             # -----------------------------
 
             if anchor_extractor is None:
-                anchor_extractor = AnchorExtractor(
-                    width=camera_width_original,
-                    height=camera_height_original,
+
+                anchor_extractor = (
+                    AnchorExtractor(
+                        width=camera_width_original,
+                        height=camera_height_original,
+                    )
                 )
 
             # -----------------------------
@@ -105,10 +124,12 @@ def main():
             )
 
             # -----------------------------
-            # Calculate delta time
+            # Delta time
             # -----------------------------
 
-            current_time = time.perf_counter()
+            current_time = (
+                time.perf_counter()
+            )
 
             dt = (
                 current_time
@@ -122,34 +143,67 @@ def main():
             # -----------------------------
 
             raw_gesture = Gesture.UNKNOWN
-            anchors = {}
+
+            camera_anchors = {}
+            world_anchors = {}
 
             # -----------------------------
-            # Process detected hand
+            # Process hand
             # -----------------------------
 
             if hands:
 
                 hand = hands[0]
 
-                # Classify gesture
-                raw_gesture = classifier.classify(
-                    hand
+                # Gesture
+                raw_gesture = (
+                    classifier.classify(
+                        hand
+                    )
                 )
 
-                # Camera-space anchors
-                camera_anchors = (
+                # Raw camera-space anchors
+                raw_anchors = (
                     anchor_extractor.from_hand(
                         hand
                     )
                 )
 
                 # ---------------------------------
-                # Convert hand coordinates into
-                # bottom-world coordinates
+                # Camera panel coordinates
                 # ---------------------------------
 
-                for name, anchor in camera_anchors.items():
+                for name, anchor in (
+                    raw_anchors.items()
+                ):
+
+                    camera_x = int(
+                        anchor.x
+                        * OUTPUT_WIDTH
+                        / camera_width_original
+                    )
+
+                    camera_y = int(
+                        anchor.y
+                        * CAMERA_HEIGHT
+                        / camera_height_original
+                    )
+
+                    camera_anchors[name] = (
+                        EffectAnchor(
+                            name=anchor.name,
+                            x=camera_x,
+                            y=camera_y,
+                        )
+                    )
+
+                # ---------------------------------
+                # World coordinates
+                # ---------------------------------
+
+                for name, anchor in (
+                    raw_anchors.items()
+                ):
 
                     world_x = int(
                         anchor.x
@@ -163,31 +217,39 @@ def main():
                         / camera_height_original
                     )
 
-                    anchors[name] = EffectAnchor(
-                        name=anchor.name,
-                        x=world_x,
-                        y=world_y,
+                    world_anchors[name] = (
+                        EffectAnchor(
+                            name=anchor.name,
+                            x=world_x,
+                            y=world_y,
+                        )
                     )
 
             # -----------------------------
             # Stabilize gesture
             # -----------------------------
 
-            stable_gesture = stabilizer.update(
-                raw_gesture
+            stable_gesture = (
+                stabilizer.update(
+                    raw_gesture
+                )
             )
 
             # -----------------------------
-            # Create gesture event
+            # Event
             # -----------------------------
 
-            event = event_manager.update(
-                stable_gesture,
-                anchors,
+            event = (
+                event_manager.update(
+                    stable_gesture,
+                    world_anchors,
+                )
             )
 
             if event:
-                effects.handle_event(event)
+                effects.handle_event(
+                    event
+                )
 
             # -----------------------------
             # Update effects
@@ -196,11 +258,12 @@ def main():
             effects.update(
                 dt,
                 stable_gesture,
-                anchors,
+                world_anchors,
+                camera_anchors,
             )
 
             # -----------------------------
-            # Create world canvas
+            # WORLD
             # -----------------------------
 
             world_frame = np.zeros(
@@ -212,12 +275,14 @@ def main():
                 dtype=np.uint8,
             )
 
-            world_frame = effects.render(
-                world_frame
+            world_frame = (
+                effects.render_world(
+                    world_frame
+                )
             )
 
             # -----------------------------
-            # Create camera panel
+            # CAMERA
             # -----------------------------
 
             camera_panel = cv2.resize(
@@ -229,7 +294,7 @@ def main():
                 interpolation=cv2.INTER_AREA,
             )
 
-            # Draw MediaPipe landmarks
+            # MediaPipe skeleton
             camera_panel = (
                 detector.draw_landmarks(
                     camera_panel,
@@ -237,19 +302,39 @@ def main():
                 )
             )
 
+            # White thumb-fingertip web
+            camera_panel = (
+                effects.render_camera(
+                    camera_panel
+                )
+            )
+
             # -----------------------------
             # Gesture text
             # -----------------------------
 
-            if stable_gesture != Gesture.UNKNOWN:
+            if (
+                stable_gesture
+                != Gesture.UNKNOWN
+            ):
 
                 cv2.putText(
                     camera_panel,
-                    f"Gesture: {stable_gesture.value}",
-                    (25, 50),
+                    (
+                        f"Gesture: "
+                        f"{stable_gesture.value}"
+                    ),
+                    (
+                        25,
+                        50,
+                    ),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1.0,
-                    (255, 255, 255),
+                    (
+                        255,
+                        255,
+                        255,
+                    ),
                     2,
                     cv2.LINE_AA,
                 )
@@ -274,7 +359,7 @@ def main():
             )
 
             # -----------------------------
-            # Combine camera + world
+            # Final output
             # -----------------------------
 
             output = np.vstack(
@@ -285,16 +370,15 @@ def main():
                 )
             )
 
-            # -----------------------------
-            # Display
-            # -----------------------------
-
             cv2.imshow(
                 window_name,
                 output,
             )
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            if (
+                cv2.waitKey(1) & 0xFF
+                == ord("q")
+            ):
                 break
 
     finally:

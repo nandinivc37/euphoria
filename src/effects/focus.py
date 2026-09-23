@@ -8,11 +8,14 @@ from effects.anchors import EffectAnchor
 
 class FocusSystem:
     """
-    Visual effect for the FOCUS gesture.
+    Camera-layer hand web.
 
     The thumb acts as the central anchor.
-    Lines connect the thumb tip to every other
-    fingertip and follow the hand in real time.
+    Thin white lines connect the thumb tip to
+    every fingertip.
+
+    This effect is rendered on the camera panel,
+    not inside the generated environment.
     """
 
     def __init__(self):
@@ -31,18 +34,21 @@ class FocusSystem:
         self.time += dt
         self.active = active
 
-        # Keep the most recent hand geometry while active.
         if active:
             self.anchors = anchors
 
-        # Smooth appearance/disappearance.
-        target_strength = 1.0 if active else 0.0
+        target_strength = (
+            1.0 if active else 0.0
+        )
 
         fade_speed = 8.0
 
         self.strength += (
             target_strength - self.strength
-        ) * min(1.0, fade_speed * dt)
+        ) * min(
+            1.0,
+            fade_speed * dt,
+        )
 
     def _distance(
         self,
@@ -83,58 +89,51 @@ class FocusSystem:
             "pinky_tip",
         )
 
-        # -----------------------------
-        # Pulse
-        # -----------------------------
-
         pulse = (
             0.5
-            + 0.5 * math.sin(self.time * 5.0)
+            + 0.5
+            * math.sin(
+                self.time * 5.0
+            )
         )
 
-        # Yellow in OpenCV BGR.
-        color = (255, 255, 255)
+        # White in OpenCV BGR.
+        color = (
+            255,
+            255,
+            255,
+        )
 
-        # Transparent-style glow layer.
+        # ---------------------------------
+        # Soft glow
+        # ---------------------------------
+
         glow_layer = np.zeros_like(frame)
-
-        # -----------------------------
-        # Draw thin glow lines
-        # -----------------------------
 
         for name in fingertip_names:
 
             fingertip = self.anchors[name]
 
-            start = (
-                thumb.x,
-                thumb.y,
-            )
-
-            end = (
-                fingertip.x,
-                fingertip.y,
-            )
-
-            # Soft outer glow.
             cv2.line(
                 glow_layer,
-                start,
-                end,
+                (
+                    thumb.x,
+                    thumb.y,
+                ),
+                (
+                    fingertip.x,
+                    fingertip.y,
+                ),
                 color,
-                6,
+                5,
                 cv2.LINE_AA,
             )
-
-        # -----------------------------
-        # Blur glow
-        # -----------------------------
 
         glow_layer = cv2.GaussianBlur(
             glow_layer,
             (0, 0),
-            sigmaX=8,
-            sigmaY=8,
+            sigmaX=7,
+            sigmaY=7,
         )
 
         frame = cv2.addWeighted(
@@ -145,11 +144,9 @@ class FocusSystem:
             0,
         )
 
-        # -----------------------------
+        # ---------------------------------
         # Thin core lines
-        # -----------------------------
-
-        core_thickness = 1
+        # ---------------------------------
 
         for name in fingertip_names:
 
@@ -157,16 +154,22 @@ class FocusSystem:
 
             cv2.line(
                 frame,
-                (thumb.x, thumb.y),
-                (fingertip.x, fingertip.y),
+                (
+                    thumb.x,
+                    thumb.y,
+                ),
+                (
+                    fingertip.x,
+                    fingertip.y,
+                ),
                 color,
-                core_thickness,
+                1,
                 cv2.LINE_AA,
             )
 
-        # -----------------------------
-        # Thumb glow point
-        # -----------------------------
+        # ---------------------------------
+        # Thumb point
+        # ---------------------------------
 
         thumb_radius = int(
             4 + 3 * pulse
@@ -174,16 +177,19 @@ class FocusSystem:
 
         cv2.circle(
             frame,
-            (thumb.x, thumb.y),
+            (
+                thumb.x,
+                thumb.y,
+            ),
             thumb_radius,
             color,
             -1,
             cv2.LINE_AA,
         )
 
-        # -----------------------------
-        # Fingertip glow points
-        # -----------------------------
+        # ---------------------------------
+        # Fingertip points
+        # ---------------------------------
 
         for name in fingertip_names:
 
@@ -195,7 +201,10 @@ class FocusSystem:
 
             cv2.circle(
                 frame,
-                (fingertip.x, fingertip.y),
+                (
+                    fingertip.x,
+                    fingertip.y,
+                ),
                 radius,
                 color,
                 -1,

@@ -6,9 +6,8 @@ class EnvironmentSystem:
     """
     Procedural 2D architectural environment.
 
-    The static architecture is rendered only when the
-    canvas size changes. This avoids rebuilding the
-    entire environment every frame.
+    The static scene is cached so the environment does not
+    need to be rebuilt every frame.
     """
 
     def __init__(self):
@@ -19,20 +18,136 @@ class EnvironmentSystem:
     def update(self, dt: float):
         self.time += dt
 
-    def _build_environment(self, width: int, height: int):
-        # ---------------------------------
-        # Base background
-        # ---------------------------------
+    # ---------------------------------
+    # Point helper
+    # ---------------------------------
 
+    def _pointed_arch_points(
+        self,
+        center_x: int,
+        bottom_y: int,
+        spring_y: int,
+        peak_y: int,
+        half_width: int,
+        samples: int = 24,
+    ):
+        """
+        Create a smooth pointed-arch outline using two
+        quadratic Bezier curves.
+        """
+
+        left_base = (
+            center_x - half_width,
+            bottom_y,
+        )
+
+        left_spring = (
+            center_x - half_width,
+            spring_y,
+        )
+
+        right_spring = (
+            center_x + half_width,
+            spring_y,
+        )
+
+        right_base = (
+            center_x + half_width,
+            bottom_y,
+        )
+
+        peak = (
+            center_x,
+            peak_y,
+        )
+
+        points = []
+
+        # Left vertical side
+        points.append(left_base)
+        points.append(left_spring)
+
+        # Left curve → peak
+        p0 = np.array(left_spring, dtype=np.float32)
+        p1 = np.array(
+            (
+                center_x - int(half_width * 0.72),
+                peak_y + int((spring_y - peak_y) * 0.10),
+            ),
+            dtype=np.float32,
+        )
+        p2 = np.array(peak, dtype=np.float32)
+
+        for t in np.linspace(0.0, 1.0, samples):
+            point = (
+                (1 - t) ** 2 * p0
+                + 2 * (1 - t) * t * p1
+                + t**2 * p2
+            )
+
+            points.append(
+                (
+                    int(point[0]),
+                    int(point[1]),
+                )
+            )
+
+        # Peak
+        points.append(peak)
+
+        # Right curve → spring
+        p0 = np.array(peak, dtype=np.float32)
+        p1 = np.array(
+            (
+                center_x + int(half_width * 0.72),
+                peak_y + int((spring_y - peak_y) * 0.10),
+            ),
+            dtype=np.float32,
+        )
+        p2 = np.array(right_spring, dtype=np.float32)
+
+        for t in np.linspace(0.0, 1.0, samples):
+            point = (
+                (1 - t) ** 2 * p0
+                + 2 * (1 - t) * t * p1
+                + t**2 * p2
+            )
+
+            points.append(
+                (
+                    int(point[0]),
+                    int(point[1]),
+                )
+            )
+
+        points.append(right_spring)
+        points.append(right_base)
+
+        return points
+
+    # ---------------------------------
+    # Build static scene
+    # ---------------------------------
+
+    def _build_environment(
+        self,
+        width: int,
+        height: int,
+    ):
         environment = np.zeros(
             (height, width, 3),
             dtype=np.uint8,
         )
 
-        # Fast vertical gradient
+        center_x = width // 2
+
+        # ---------------------------------
+        # Background gradient
+        # ---------------------------------
+
         gradient = np.linspace(
             7,
-            22,
+            20,
             height,
             dtype=np.uint8,
         ).reshape(height, 1)
@@ -45,23 +160,22 @@ class EnvironmentSystem:
             255,
         )
 
-        center_x = width // 2
-        floor_y = int(height * 0.76)
+        floor_y = int(height * 0.77)
 
         # ---------------------------------
-        # Back wall
+        # Main wall
         # ---------------------------------
 
         cv2.rectangle(
             environment,
-            (0, int(height * 0.08)),
+            (0, int(height * 0.04)),
             (width, floor_y),
-            (18, 12, 24),
+            (15, 9, 21),
             -1,
         )
 
         # ---------------------------------
-        # Central soft glow
+        # Central ambient illumination
         # ---------------------------------
 
         glow = np.zeros_like(environment)
@@ -73,21 +187,20 @@ class EnvironmentSystem:
                 int(height * 0.42),
             ),
             (
-                int(width * 0.38),
-                int(height * 0.42),
+                int(width * 0.34),
+                int(height * 0.40),
             ),
             0,
             0,
             360,
-            (34, 12, 46),
+            (38, 12, 52),
             -1,
         )
 
-        # Use only one moderate blur.
         glow = cv2.GaussianBlur(
             glow,
             (0, 0),
-            20,
+            18,
         )
 
         environment = cv2.add(
@@ -96,166 +209,380 @@ class EnvironmentSystem:
         )
 
         # ---------------------------------
-        # Architectural columns
+        # Far wall divisions
         # ---------------------------------
 
-        column_width = max(
-            6,
-            int(width * 0.022),
+        wall_line = (31, 17, 36)
+
+        for ratio in (
+            0.13,
+            0.20,
+            0.27,
+        ):
+            y = int(height * ratio)
+
+            cv2.line(
+                environment,
+                (0, y),
+                (width, y),
+                wall_line,
+                1,
+                cv2.LINE_AA,
+            )
+
+        # ---------------------------------
+        # Main outer columns
+        # ---------------------------------
+
+        outer_column = (48, 25, 51)
+        outer_highlight = (73, 37, 76)
+
+        outer_positions = (
+            0.07,
+            0.93,
         )
 
-        columns = (
-            (0.08, 0.14, (48, 27, 52)),
-            (0.18, 0.20, (34, 20, 40)),
-            (0.29, 0.28, (34, 20, 40)),
-            (0.71, 0.28, (34, 20, 40)),
-            (0.82, 0.20, (34, 20, 40)),
-            (0.92, 0.14, (48, 27, 52)),
+        outer_width = max(
+            8,
+            int(width * 0.025),
         )
 
-        for position, top_ratio, color in columns:
+        for position in outer_positions:
 
             x = int(width * position)
 
-            top = int(
-                height * top_ratio
+            top = int(height * 0.12)
+
+            cv2.rectangle(
+                environment,
+                (
+                    x - outer_width // 2,
+                    top,
+                ),
+                (
+                    x + outer_width // 2,
+                    floor_y,
+                ),
+                outer_column,
+                -1,
             )
 
-            current_width = (
-                column_width
-                if position in (0.08, 0.92)
-                else max(4, column_width // 2)
+            cv2.line(
+                environment,
+                (
+                    x - outer_width // 2,
+                    top,
+                ),
+                (
+                    x - outer_width // 2,
+                    floor_y,
+                ),
+                outer_highlight,
+                1,
+                cv2.LINE_AA,
+            )
+
+        # ---------------------------------
+        # Secondary columns
+        # ---------------------------------
+
+        secondary_column = (33, 18, 40)
+
+        secondary_positions = (
+            0.18,
+            0.30,
+            0.70,
+            0.82,
+        )
+
+        for position in secondary_positions:
+
+            x = int(width * position)
+
+            column_width = max(
+                4,
+                int(width * 0.012),
+            )
+
+            top = int(
+                height * (
+                    0.18
+                    if position in (0.18, 0.82)
+                    else 0.25
+                )
             )
 
             cv2.rectangle(
                 environment,
                 (
-                    x - current_width // 2,
+                    x - column_width // 2,
                     top,
                 ),
                 (
-                    x + current_width // 2,
+                    x + column_width // 2,
                     floor_y,
                 ),
-                color,
+                secondary_column,
                 -1,
             )
 
         # ---------------------------------
-        # Large outer arch
+        # Side alcoves
         # ---------------------------------
 
-        cv2.ellipse(
+        alcove_color = (22, 11, 28)
+
+        alcove_width = int(
+            width * 0.13
+        )
+
+        alcove_top = int(
+            height * 0.34
+        )
+
+        alcove_bottom = floor_y
+
+        for x in (
+            int(width * 0.18),
+            int(width * 0.82),
+        ):
+
+            left = x - alcove_width // 2
+            right = x + alcove_width // 2
+
+            cv2.rectangle(
+                environment,
+                (
+                    left,
+                    alcove_top,
+                ),
+                (
+                    right,
+                    alcove_bottom,
+                ),
+                alcove_color,
+                -1,
+            )
+
+            cv2.ellipse(
+                environment,
+                (
+                    x,
+                    alcove_top,
+                ),
+                (
+                    alcove_width // 2,
+                    int(alcove_width * 0.55),
+                ),
+                0,
+                180,
+                360,
+                alcove_color,
+                -1,
+            )
+
+            cv2.ellipse(
+                environment,
+                (
+                    x,
+                    alcove_top,
+                ),
+                (
+                    alcove_width // 2,
+                    int(alcove_width * 0.55),
+                ),
+                0,
+                180,
+                360,
+                (52, 27, 57),
+                2,
+                cv2.LINE_AA,
+            )
+
+        # ---------------------------------
+        # Grand central pointed arch
+        # ---------------------------------
+
+        arch_bottom = int(
+            height * 0.78
+        )
+
+        arch_spring = int(
+            height * 0.44
+        )
+
+        arch_peak = int(
+            height * 0.10
+        )
+
+        arch_half_width = int(
+            width * 0.29
+        )
+
+        outer_arch = self._pointed_arch_points(
+            center_x,
+            arch_bottom,
+            arch_spring,
+            arch_peak,
+            arch_half_width,
+        )
+
+        # Soft arch glow
+        arch_glow = np.zeros_like(environment)
+
+        cv2.polylines(
+            arch_glow,
+            [
+                np.array(
+                    outer_arch,
+                    dtype=np.int32,
+                )
+            ],
+            False,
+            (91, 36, 108),
+            7,
+            cv2.LINE_AA,
+        )
+
+        arch_glow = cv2.GaussianBlur(
+            arch_glow,
+            (0, 0),
+            9,
+        )
+
+        environment = cv2.add(
             environment,
-            (
-                center_x,
-                int(height * 0.77),
-            ),
-            (
-                int(width * 0.29),
-                int(height * 0.41),
-            ),
-            0,
-            180,
-            360,
-            (65, 38, 69),
+            arch_glow,
+        )
+
+        # Main arch
+        cv2.polylines(
+            environment,
+            [
+                np.array(
+                    outer_arch,
+                    dtype=np.int32,
+                )
+            ],
+            False,
+            (69, 35, 73),
             4,
             cv2.LINE_AA,
         )
 
         # ---------------------------------
-        # Inner arch
+        # Second arch layer
         # ---------------------------------
 
-        cv2.ellipse(
+        inner_arch = self._pointed_arch_points(
+            center_x,
+            int(height * 0.78),
+            int(height * 0.49),
+            int(height * 0.17),
+            int(width * 0.23),
+        )
+
+        cv2.polylines(
             environment,
-            (
-                center_x,
-                int(height * 0.77),
-            ),
-            (
-                int(width * 0.215),
-                int(height * 0.34),
-            ),
-            0,
-            180,
-            360,
-            (48, 26, 52),
+            [
+                np.array(
+                    inner_arch,
+                    dtype=np.int32,
+                )
+            ],
+            False,
+            (49, 25, 53),
             2,
             cv2.LINE_AA,
         )
 
         # ---------------------------------
-        # Central doorway
+        # Central deep portal
         # ---------------------------------
 
-        doorway_width = int(
-            width * 0.27
+        portal_width = int(
+            width * 0.245
         )
 
-        doorway_left = (
-            center_x
-            - doorway_width // 2
+        portal_left = (
+            center_x - portal_width // 2
         )
 
-        doorway_right = (
-            center_x
-            + doorway_width // 2
+        portal_right = (
+            center_x + portal_width // 2
         )
 
-        doorway_top = int(
-            height * 0.27
+        portal_top = int(
+            height * 0.29
         )
 
+        # Portal interior
         cv2.rectangle(
             environment,
             (
-                doorway_left,
-                doorway_top,
+                portal_left,
+                portal_top,
             ),
             (
-                doorway_right,
+                portal_right,
                 floor_y,
             ),
-            (3, 2, 6),
+            (2, 1, 5),
             -1,
         )
 
-        # Rounded top
-        cv2.ellipse(
+        portal_arch = self._pointed_arch_points(
+            center_x,
+            floor_y,
+            int(height * 0.50),
+            int(height * 0.26),
+            portal_width // 2,
+            samples=18,
+        )
+
+        cv2.fillPoly(
             environment,
-            (
-                center_x,
-                doorway_top,
-            ),
-            (
-                doorway_width // 2,
-                int(doorway_width * 0.55),
-            ),
-            0,
-            180,
-            360,
-            (3, 2, 6),
-            -1,
+            [
+                np.array(
+                    portal_arch,
+                    dtype=np.int32,
+                )
+            ],
+            (2, 1, 5),
+        )
+
+        # Portal edges
+        cv2.polylines(
+            environment,
+            [
+                np.array(
+                    portal_arch,
+                    dtype=np.int32,
+                )
+            ],
+            False,
+            (55, 26, 59),
+            2,
+            cv2.LINE_AA,
         )
 
         # ---------------------------------
-        # Doorway edge highlights
+        # Vertical portal light accents
         # ---------------------------------
 
-        highlight = (62, 31, 68)
+        portal_highlight = (83, 40, 87)
 
         cv2.line(
             environment,
             (
-                doorway_left,
-                doorway_top,
+                portal_left,
+                int(height * 0.50),
             ),
             (
-                doorway_left,
+                portal_left,
                 floor_y,
             ),
-            highlight,
+            portal_highlight,
             1,
             cv2.LINE_AA,
         )
@@ -263,14 +590,14 @@ class EnvironmentSystem:
         cv2.line(
             environment,
             (
-                doorway_right,
-                doorway_top,
+                portal_right,
+                int(height * 0.50),
             ),
             (
-                doorway_right,
+                portal_right,
                 floor_y,
             ),
-            highlight,
+            portal_highlight,
             1,
             cv2.LINE_AA,
         )
@@ -279,25 +606,31 @@ class EnvironmentSystem:
         # Ceiling ribs
         # ---------------------------------
 
-        ceiling_color = (32, 18, 38)
+        ceiling_color = (34, 18, 40)
 
-        top = int(height * 0.08)
-        middle = int(height * 0.28)
+        ceiling_top = int(
+            height * 0.04
+        )
+
+        ceiling_center = int(
+            height * 0.30
+        )
 
         for x in np.linspace(
-            width * 0.10,
-            width * 0.90,
-            7,
+            width * 0.05,
+            width * 0.95,
+            9,
         ):
+
             cv2.line(
                 environment,
                 (
                     int(x),
-                    top,
+                    ceiling_top,
                 ),
                 (
                     center_x,
-                    middle,
+                    ceiling_center,
                 ),
                 ceiling_color,
                 1,
@@ -312,13 +645,13 @@ class EnvironmentSystem:
             environment,
             (0, floor_y),
             (width, height),
-            (12, 8, 16),
+            (11, 7, 15),
             -1,
         )
 
-        floor_color = (39, 21, 44)
+        floor_color = (42, 22, 47)
 
-        # Horizontal perspective lines
+        # Horizontal depth bands
         for i in range(7):
 
             t = i / 7
@@ -347,7 +680,7 @@ class EnvironmentSystem:
         for x in np.linspace(
             0,
             width,
-            13,
+            15,
         ):
 
             cv2.line(
@@ -365,29 +698,29 @@ class EnvironmentSystem:
         # Central aisle
         cv2.line(
             environment,
-            (
-                center_x,
-                floor_y,
-            ),
+            vanishing_point,
             (
                 center_x,
                 height,
             ),
-            (56, 28, 60),
-            1,
+            (58, 28, 62),
+            2,
             cv2.LINE_AA,
         )
+
+        # ---------------------------------
+        # Return cached static scene
+        # ---------------------------------
 
         return environment
 
     def render(self, frame):
         height, width = frame.shape[:2]
 
-        # ---------------------------------
-        # Build static scene only once
-        # ---------------------------------
-
-        current_size = (width, height)
+        current_size = (
+            width,
+            height,
+        )
 
         if (
             self.cached_environment is None
@@ -402,8 +735,6 @@ class EnvironmentSystem:
 
             self.cached_size = current_size
 
-        # Return a copy so other effects can
-        # safely draw on top of it.
         return self.cached_environment.copy()
 
     def reset(self):
