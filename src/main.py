@@ -48,7 +48,10 @@ def main():
 
     event_manager = GestureEventManager()
 
-    effects = EffectsEngine()
+    effects = EffectsEngine(
+        world_width=OUTPUT_WIDTH,
+        world_height=WORLD_HEIGHT,
+    )
 
     anchor_extractor = None
 

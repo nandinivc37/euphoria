@@ -10,14 +10,64 @@ from effects.environment import EnvironmentSystem
 
 
 class EffectsEngine:
-    def __init__(self):
+    def __init__(
+        self,
+        world_width: int,
+        world_height: int,
+    ):
         self.particles = ParticleSystem()
         self.beams = BeamSystem()
         self.focus = FocusSystem()
         self.atmosphere = AtmosphereSystem()
         self.environment = EnvironmentSystem()
 
-        self.active_gesture = Gesture.UNKNOWN
+        # --------------------------------
+        # Portal target
+        # --------------------------------
+
+        portal_x = world_width // 2
+        portal_y = int(world_height * 0.56)
+
+        self.portal_target = EffectAnchor(
+            name="portal",
+            x=portal_x,
+            y=portal_y,
+        )
+
+        # --------------------------------
+        # TWO gesture targets
+        # --------------------------------
+
+        target_offset = int(
+            world_width * 0.055
+        )
+
+        self.two_left_target = (
+            EffectAnchor(
+                name="two_left_portal",
+                x=portal_x - target_offset,
+                y=portal_y,
+            )
+        )
+
+        self.two_right_target = (
+            EffectAnchor(
+                name="two_right_portal",
+                x=portal_x + target_offset,
+                y=portal_y,
+            )
+        )
+
+        self.active_gesture = (
+            Gesture.UNKNOWN
+        )
+
+        # --------------------------------
+        # Continuous emission timers
+        # --------------------------------
+
+        self.one_emit_timer = 0.0
+        self.two_emit_timer = 0.0
 
     # --------------------------------
     # Particle helper
@@ -28,11 +78,15 @@ class EffectsEngine:
         anchor: EffectAnchor,
         count: int,
         color: tuple[int, int, int],
+        target: EffectAnchor | None = None,
+        target_strength: float = 0.0,
     ):
         self.particles.emit_from_anchor(
             anchor,
             count=count,
             color=color,
+            target=target,
+            target_strength=target_strength,
         )
 
     # --------------------------------
@@ -43,7 +97,9 @@ class EffectsEngine:
         self,
         event: GestureEvent,
     ):
-        self.active_gesture = event.gesture
+        self.active_gesture = (
+            event.gesture
+        )
 
         anchors = event.anchors
 
@@ -53,10 +109,13 @@ class EffectsEngine:
 
         if event.gesture == Gesture.ONE:
 
+            # Small initial burst.
             self._emit(
                 anchors["index_tip"],
-                count=45,
+                count=12,
                 color=(255, 120, 0),
+                target=self.portal_target,
+                target_strength=520.0,
             )
 
         # --------------------------------
@@ -65,19 +124,24 @@ class EffectsEngine:
 
         elif event.gesture == Gesture.TWO:
 
-            # No beams.
-            # Only particles in the world.
-
+            # Initial burst from index finger
+            # toward left side of portal.
             self._emit(
                 anchors["index_tip"],
-                count=40,
+                count=8,
                 color=(255, 0, 255),
+                target=self.two_left_target,
+                target_strength=500.0,
             )
 
+            # Initial burst from middle finger
+            # toward right side of portal.
             self._emit(
                 anchors["middle_tip"],
-                count=40,
+                count=8,
                 color=(255, 0, 255),
+                target=self.two_right_target,
+                target_strength=500.0,
             )
 
         # --------------------------------
@@ -169,11 +233,98 @@ class EffectsEngine:
         world_anchors: dict[str, EffectAnchor],
         camera_anchors: dict[str, EffectAnchor],
     ):
+        # --------------------------------
         # Environment
+        # --------------------------------
+
         self.environment.update(dt)
 
-        # Particles live in world
+        # --------------------------------
+        # Particles
+        # --------------------------------
+
         self.particles.update(dt)
+
+        # --------------------------------
+        # Continuous ONE stream
+        # --------------------------------
+
+        if (
+            gesture == Gesture.ONE
+            and "index_tip" in world_anchors
+        ):
+            self.one_emit_timer += dt
+
+            emission_interval = 0.07
+
+            while (
+                self.one_emit_timer
+                >= emission_interval
+            ):
+                self.one_emit_timer -= (
+                    emission_interval
+                )
+
+                self._emit(
+                    world_anchors[
+                        "index_tip"
+                    ],
+                    count=2,
+                    color=(255, 120, 0),
+                    target=self.portal_target,
+                    target_strength=520.0,
+                )
+
+        else:
+            self.one_emit_timer = 0.0
+
+        # --------------------------------
+        # Continuous TWO streams
+        # --------------------------------
+
+        if (
+            gesture == Gesture.TWO
+            and
+            "index_tip" in world_anchors
+            and
+            "middle_tip" in world_anchors
+        ):
+            self.two_emit_timer += dt
+
+            emission_interval = 0.09
+
+            while (
+                self.two_emit_timer
+                >= emission_interval
+            ):
+                self.two_emit_timer -= (
+                    emission_interval
+                )
+
+                # Index → left portal target
+                self._emit(
+                    world_anchors[
+                        "index_tip"
+                    ],
+                    count=1,
+                    color=(255, 0, 255),
+                    target=self.two_left_target,
+                    target_strength=500.0,
+                )
+
+                # Middle → right portal target
+                self._emit(
+                    world_anchors[
+                        "middle_tip"
+                    ],
+                    count=1,
+                    color=(255, 0, 255),
+                    target=self.two_right_target,
+                    target_strength=500.0,
+                )
+
+        else:
+            self.two_emit_timer = 0.0
 
         # --------------------------------
         # Beams disabled
@@ -186,7 +337,7 @@ class EffectsEngine:
         )
 
         # --------------------------------
-        # Focus web lives in camera
+        # Camera web
         # --------------------------------
 
         focus_active = (
@@ -232,17 +383,14 @@ class EffectsEngine:
 
     def render_world(self, frame):
 
-        # 1. Architecture
         frame = self.environment.render(
             frame
         )
 
-        # 2. Atmosphere
         frame = self.atmosphere.render(
             frame
         )
 
-        # 3. Particles
         frame = self.particles.render(
             frame
         )
@@ -254,7 +402,7 @@ class EffectsEngine:
     # --------------------------------
 
     def render_camera(self, frame):
-        # Only the hand web belongs here.
+
         frame = self.focus.render(
             frame
         )
@@ -272,4 +420,9 @@ class EffectsEngine:
         self.atmosphere.reset()
         self.environment.reset()
 
-        self.active_gesture = Gesture.UNKNOWN
+        self.active_gesture = (
+            Gesture.UNKNOWN
+        )
+
+        self.one_emit_timer = 0.0
+        self.two_emit_timer = 0.0

@@ -35,20 +35,27 @@ class FocusSystem:
         self.active = active
 
         if active:
+            # Keep the latest hand geometry.
             self.anchors = anchors
 
-        target_strength = (
-            1.0 if active else 0.0
-        )
+            # Smooth fade-in.
+            target_strength = 1.0
 
-        fade_speed = 8.0
+            fade_speed = 8.0
 
-        self.strength += (
-            target_strength - self.strength
-        ) * min(
-            1.0,
-            fade_speed * dt,
-        )
+            self.strength += (
+                target_strength
+                - self.strength
+            ) * min(
+                1.0,
+                fade_speed * dt,
+            )
+
+        else:
+            # Remove immediately when leaving
+            # FIVE / FOCUS.
+            self.strength = 0.0
+            self.anchors.clear()
 
     def _distance(
         self,
