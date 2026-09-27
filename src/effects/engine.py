@@ -177,10 +177,12 @@ class EffectsEngine:
         dt: float,
         gesture: Gesture,
         world_anchors: dict[str, EffectAnchor],
-        active_camera_hands: list [
+        active_camera_hands: list[
             dict[str, EffectAnchor],
         ],
         right_palm_open: bool,
+        left_palm_open: bool,
+        right_palm_angle: float | None,
         pinch_trigger: bool,
     ):
         # --------------------------------
@@ -194,7 +196,7 @@ class EffectsEngine:
         # --------------------------------
         self.rain.update(
             dt,
-            active=right_palm_open,
+            active=left_palm_open,
         )
 
         # --------------------------------
@@ -210,21 +212,40 @@ class EffectsEngine:
         # Pillar Lights
         # --------------------------------
 
-        palm = world_anchors.get("palm_center")
+        palm = world_anchors.get(
+            "palm_center"
+        )
 
-        pillar_active = (
-            gesture in (
-                Gesture.FIVE,
-                Gesture.FOCUS,
+        if (
+            not right_palm_open
+            and not left_palm_open
+        ):
+            # Nobody is holding the interaction state.
+            # Clear the temporary pillar lights.
+            self.pillar_lights.reset()
+
+        else:
+            self.pillar_lights.update(
+                dt,
+                active=right_palm_open,
+                palm_x=(
+                    palm.x
+                    if palm is not None
+                    and right_palm_open
+                    else None
+                ),
+                palm_y=(
+                    palm.y
+                    if palm is not None
+                    and right_palm_open
+                    else None
+                ),
+                palm_angle=(
+                    right_palm_angle
+                    if right_palm_open
+                    else None
+                ),
             )
-        )
-
-        self.pillar_lights.update(
-            dt,
-            active=pillar_active,
-            palm_x=palm.x if palm else None,
-            palm_y=palm.y if palm else None,
-        )
 
         # --------------------------------
         # Particles

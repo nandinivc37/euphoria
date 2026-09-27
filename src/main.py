@@ -1,5 +1,5 @@
 import time
-
+import math
 import cv2
 import numpy as np
 
@@ -33,6 +33,21 @@ WORLD_HEIGHT = (
     - SEPARATOR_HEIGHT
 )
 
+
+
+def get_hand_rotation_angle(hand):
+    wrist = hand.wrist
+    thumb = hand.points[2]
+
+    dx = thumb.x - wrist.x
+    dy = thumb.y - wrist.y
+
+    return math.degrees(
+        math.atan2(
+            -dy,
+            dx,
+        )
+    )
 
 def crop_camera_to_panel(
     frame,
@@ -151,6 +166,8 @@ def main():
 
     pinch_states = {}
 
+    previous_left_palm_open = False
+
     try:
 
         while True:
@@ -211,6 +228,7 @@ def main():
             # -----------------------------
 
             raw_gesture = Gesture.UNKNOWN
+            camera_anchor_list = []
 
             world_anchors = {}
 
@@ -218,7 +236,12 @@ def main():
             # This must be created BEFORE
             # processing the hands.
             active_camera_hands = []
+
             right_palm_open = False
+            left_palm_open = False
+
+            right_palm_angle = None
+
             pinch_trigger = False
 
             #-----------------------------
@@ -228,6 +251,21 @@ def main():
             for hand_index, hand in enumerate(hands):
 
                 hand_gesture = classifier.classify(hand)
+
+                if (
+                    hand.is_right
+                    and hand_gesture == Gesture.FIVE
+                ):
+                    right_palm_open = True
+                    right_palm_angle = (
+                        get_hand_rotation_angle(hand)
+                    )
+
+                if (
+                    hand.is_left
+                    and hand_gesture == Gesture.FIVE
+                ):
+                    left_palm_open = True
 
                 # pinch detection goes HERE
                 dx = hand.thumb_tip.x - hand.index_tip.x
@@ -297,6 +335,37 @@ def main():
                         )
                     )
 
+                    # ---------------------------------
+                    # Independent hand roles
+                    # ---------------------------------
+
+                    if (
+                        hand.is_right
+                        and hand_gesture == Gesture.FIVE
+                    ):
+                        right_palm_open = True
+
+                        # Right-hand rotation angle.
+                        dx = (
+                            hand.thumb_tip.x
+                            - hand.wrist.x
+                        )
+
+                        dy = (
+                            hand.thumb_tip.y
+                            - hand.wrist.y
+                        )
+
+                        right_palm_angle = math.degrees(
+                            math.atan2(-dy, dx)
+                        )
+
+                    if (
+                        hand.is_left
+                        and hand_gesture == Gesture.FIVE
+                    ):
+                        left_palm_open = True
+
                     if hand.is_right and hand_gesture == Gesture.FIVE:
                         right_palm_open = True
 
@@ -307,7 +376,7 @@ def main():
                     # controlled by the primary hand.
                     # ---------------------------------
 
-                    if hand is primary_hand:
+                    if hand.is_right:
 
                         for (
                             name,
@@ -352,6 +421,18 @@ def main():
                             raw_anchors
                         )
 
+
+            left_palm_released = (
+                previous_left_palm_open
+                and not left_palm_open
+            )
+
+            if left_palm_released:
+                effects.reset()
+
+            previous_left_palm_open = left_palm_open
+
+            
             # -----------------------------
             # Stabilize primary gesture
             # -----------------------------
@@ -460,6 +541,8 @@ def main():
                 world_anchors,
                 transformed_active_hands,
                 right_palm_open,
+                left_palm_open,
+                right_palm_angle,
                 pinch_trigger,
             )
 
