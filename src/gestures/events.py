@@ -1,14 +1,14 @@
 from dataclasses import dataclass
 from time import monotonic
 
-from gestures.definitions import Gesture
 from effects.anchors import EffectAnchor
+from gestures.definitions import Gesture
 
 
 @dataclass(frozen=True)
 class GestureEvent:
     gesture: Gesture
-    anchors: list[EffectAnchor]
+    anchors: dict[str, EffectAnchor]
     timestamp: float
 
 
@@ -19,19 +19,18 @@ class GestureEventManager:
     def update(
         self,
         gesture: Gesture,
-        anchors: list[EffectAnchor],
+        anchors: dict[str, EffectAnchor],
     ) -> GestureEvent | None:
 
-        event = None
+        if gesture == self.previous_gesture:
+            return None
 
-        # Trigger an event only when the gesture changes.
-        if gesture != self.previous_gesture:
-            event = GestureEvent(
-                gesture=gesture,
-                anchors=anchors,
-                timestamp=monotonic(),
-            )
+        event = GestureEvent(
+            gesture=gesture,
+            anchors=anchors,
+            timestamp=monotonic(),
+        )
 
-            self.previous_gesture = gesture
+        self.previous_gesture = gesture
 
         return event

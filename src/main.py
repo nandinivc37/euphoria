@@ -15,10 +15,16 @@ from effects.anchors import AnchorExtractor, EffectAnchor
 from effects.engine import EffectsEngine
 
 
-OUTPUT_WIDTH = 1200
-OUTPUT_HEIGHT = 900
+# --------------------------------
+# Portrait 3:4 output
+# --------------------------------
 
+OUTPUT_WIDTH = 900
+OUTPUT_HEIGHT = 1200
+
+# 50 / 50 camera + world
 CAMERA_HEIGHT = OUTPUT_HEIGHT // 2
+
 SEPARATOR_HEIGHT = 3
 
 WORLD_HEIGHT = (
@@ -28,7 +34,64 @@ WORLD_HEIGHT = (
 )
 
 
+def crop_camera_to_panel(
+    frame,
+    target_width,
+    target_height,
+):
+    """
+    Resize the camera proportionally so it fills
+    the panel width, then crop vertically.
+    """
+
+    source_height, source_width = frame.shape[:2]
+
+    # Scale according to width.
+    scale = (
+        target_width / source_width
+    )
+
+    new_width = int(
+        source_width * scale
+    )
+
+    new_height = int(
+        source_height * scale
+    )
+
+    resized = cv2.resize(
+        frame,
+        (
+            new_width,
+            new_height,
+        ),
+        interpolation=cv2.INTER_AREA,
+    )
+
+    # Center crop vertically.
+    crop_top = max(
+        0,
+        (
+            new_height
+            - target_height
+        ) // 2,
+    )
+
+    cropped = resized[
+        crop_top:
+        crop_top + target_height,
+        :
+    ]
+
+    return (
+        cropped,
+        scale,
+        crop_top,
+    )
+
+
 def main():
+
     # -----------------------------
     # Initialize components
     # -----------------------------
@@ -64,7 +127,7 @@ def main():
     )
 
     # -----------------------------
-    # Create output window
+    # Output window
     # -----------------------------
 
     window_name = (
@@ -115,7 +178,7 @@ def main():
                 )
 
             # -----------------------------
-            # Detect hand
+            # Detect hands
             # -----------------------------
 
             results = detector.process(
@@ -147,89 +210,107 @@ def main():
 
             raw_gesture = Gesture.UNKNOWN
 
-            camera_anchors = {}
             world_anchors = {}
 
+            # IMPORTANT:
+            # This must be created BEFORE
+            # processing the hands.
+            active_camera_hands = []
+
             # -----------------------------
-            # Process hand
+            # Process detected hands
             # -----------------------------
 
             if hands:
 
-                hand = hands[0]
+                # ---------------------------------
+                # Primary hand
+                # ---------------------------------
 
-                # Gesture
-                raw_gesture = (
-                    classifier.classify(
-                        hand
-                    )
-                )
+                primary_hand = hands[0]
 
-                # Raw camera-space anchors
-                raw_anchors = (
-                    anchor_extractor.from_hand(
-                        hand
-                    )
+                # Primary hand still controls
+                # the world gesture for now.
+                raw_gesture = classifier.classify(
+                    primary_hand
                 )
 
                 # ---------------------------------
-                # Camera panel coordinates
+                # Process every detected hand
                 # ---------------------------------
 
-                for name, anchor in (
-                    raw_anchors.items()
-                ):
+                for hand in hands:
 
-                    camera_x = int(
-                        anchor.x
-                        * OUTPUT_WIDTH
-                        / camera_width_original
-                    )
-
-                    camera_y = int(
-                        anchor.y
-                        * CAMERA_HEIGHT
-                        / camera_height_original
-                    )
-
-                    camera_anchors[name] = (
-                        EffectAnchor(
-                            name=anchor.name,
-                            x=camera_x,
-                            y=camera_y,
+                    raw_anchors = (
+                        anchor_extractor.from_hand(
+                            hand
                         )
                     )
 
-                # ---------------------------------
-                # World coordinates
-                # ---------------------------------
+                    # ---------------------------------
+                    # Gesture for THIS hand
+                    # ---------------------------------
 
-                for name, anchor in (
-                    raw_anchors.items()
-                ):
-
-                    world_x = int(
-                        anchor.x
-                        * OUTPUT_WIDTH
-                        / camera_width_original
-                    )
-
-                    world_y = int(
-                        anchor.y
-                        * WORLD_HEIGHT
-                        / camera_height_original
-                    )
-
-                    world_anchors[name] = (
-                        EffectAnchor(
-                            name=anchor.name,
-                            x=world_x,
-                            y=world_y,
+                    hand_gesture = (
+                        classifier.classify(
+                            hand
                         )
                     )
+
+                    # ---------------------------------
+                    # World coordinates
+                    #
+                    # For now, world effects are
+                    # controlled by the primary hand.
+                    # ---------------------------------
+
+                    if hand is primary_hand:
+
+                        for (
+                            name,
+                            anchor,
+                        ) in raw_anchors.items():
+
+                            world_x = int(
+                                anchor.x
+                                * OUTPUT_WIDTH
+                                / camera_width_original
+                            )
+
+                            world_y = int(
+                                anchor.y
+                                * WORLD_HEIGHT
+                                / camera_height_original
+                            )
+
+                            world_anchors[name] = (
+                                EffectAnchor(
+                                    name=anchor.name,
+                                    x=world_x,
+                                    y=world_y,
+                                )
+                            )
+
+                    # ---------------------------------
+                    # Camera-space anchors
+                    #
+                    # Keep these in the ORIGINAL
+                    # camera coordinate system for now.
+                    # We transform them after the camera
+                    # panel is created.
+                    # ---------------------------------
+
+                    if hand_gesture in (
+                        Gesture.FOCUS,
+                        Gesture.FIVE,
+                    ):
+
+                        active_camera_hands.append(
+                            raw_anchors
+                        )
 
             # -----------------------------
-            # Stabilize gesture
+            # Stabilize primary gesture
             # -----------------------------
 
             stable_gesture = (
@@ -239,7 +320,7 @@ def main():
             )
 
             # -----------------------------
-            # Event
+            # Gesture event
             # -----------------------------
 
             event = (
@@ -255,6 +336,78 @@ def main():
                 )
 
             # -----------------------------
+            # Create camera image with
+            # MediaPipe landmarks FIRST
+            # -----------------------------
+
+            camera_annotated = (
+                camera_frame.copy()
+            )
+
+            camera_annotated = (
+                detector.draw_landmarks(
+                    camera_annotated,
+                    results,
+                )
+            )
+
+            # -----------------------------
+            # Fit camera into portrait panel
+            # -----------------------------
+
+            (
+                camera_panel,
+                camera_scale,
+                crop_top,
+            ) = crop_camera_to_panel(
+                camera_annotated,
+                OUTPUT_WIDTH,
+                CAMERA_HEIGHT,
+            )
+
+            # -----------------------------
+            # Transform only the active
+            # hand webs into the final
+            # camera-panel coordinates
+            # -----------------------------
+
+            transformed_active_hands = []
+
+            for hand_anchors in (
+                active_camera_hands
+            ):
+
+                transformed = {}
+
+                for (
+                    name,
+                    anchor,
+                ) in hand_anchors.items():
+
+                    x = int(
+                        anchor.x
+                        * camera_scale
+                    )
+
+                    y = int(
+                        anchor.y
+                        * camera_scale
+                        - crop_top
+                    )
+
+                    transformed[name] = (
+                        EffectAnchor(
+                            name=anchor.name,
+                            x=x,
+                            y=y,
+                        )
+                    )
+
+                transformed_active_hands.append(
+                    transformed
+                )
+
+            # -----------------------------
             # Update effects
             # -----------------------------
 
@@ -262,50 +415,13 @@ def main():
                 dt,
                 stable_gesture,
                 world_anchors,
-                camera_anchors,
+                transformed_active_hands,
             )
 
             # -----------------------------
-            # WORLD
+            # White camera-layer web
             # -----------------------------
 
-            world_frame = np.zeros(
-                (
-                    WORLD_HEIGHT,
-                    OUTPUT_WIDTH,
-                    3,
-                ),
-                dtype=np.uint8,
-            )
-
-            world_frame = (
-                effects.render_world(
-                    world_frame
-                )
-            )
-
-            # -----------------------------
-            # CAMERA
-            # -----------------------------
-
-            camera_panel = cv2.resize(
-                camera_frame,
-                (
-                    OUTPUT_WIDTH,
-                    CAMERA_HEIGHT,
-                ),
-                interpolation=cv2.INTER_AREA,
-            )
-
-            # MediaPipe skeleton
-            camera_panel = (
-                detector.draw_landmarks(
-                    camera_panel,
-                    results,
-                )
-            )
-
-            # White thumb-fingertip web
             camera_panel = (
                 effects.render_camera(
                     camera_panel
@@ -343,6 +459,25 @@ def main():
                 )
 
             # -----------------------------
+            # World canvas
+            # -----------------------------
+
+            world_frame = np.zeros(
+                (
+                    WORLD_HEIGHT,
+                    OUTPUT_WIDTH,
+                    3,
+                ),
+                dtype=np.uint8,
+            )
+
+            world_frame = (
+                effects.render_world(
+                    world_frame
+                )
+            )
+
+            # -----------------------------
             # Separator
             # -----------------------------
 
@@ -362,7 +497,7 @@ def main():
             )
 
             # -----------------------------
-            # Final output
+            # Final portrait output
             # -----------------------------
 
             output = np.vstack(

@@ -10,12 +10,9 @@ class FocusSystem:
     """
     Camera-layer hand web.
 
-    The thumb acts as the central anchor.
-    Thin white lines connect the thumb tip to
-    every fingertip.
-
-    This effect is rendered on the camera panel,
-    not inside the generated environment.
+    Each hand is handled independently.
+    A web is drawn only for hands whose individual
+    gesture is FOCUS or FIVE.
     """
 
     def __init__(self):
@@ -23,77 +20,57 @@ class FocusSystem:
         self.strength = 0.0
         self.time = 0.0
 
-        self.anchors: dict[str, EffectAnchor] = {}
+        self.active_hand_anchors: list[
+            dict[str, EffectAnchor]
+        ] = []
 
     def update(
         self,
         dt: float,
-        active: bool,
-        anchors: dict[str, EffectAnchor],
+        active_hand_anchors: list[
+            dict[str, EffectAnchor]
+        ],
     ):
         self.time += dt
-        self.active = active
 
-        if active:
-            # Keep the latest hand geometry.
-            self.anchors = anchors
+        self.active_hand_anchors = (
+            active_hand_anchors
+        )
 
-            # Smooth fade-in.
-            target_strength = 1.0
+        self.active = bool(
+            active_hand_anchors
+        )
 
-            fade_speed = 8.0
+        target_strength = (
+            1.0 if self.active else 0.0
+        )
 
-            self.strength += (
-                target_strength
-                - self.strength
-            ) * min(
-                1.0,
-                fade_speed * dt,
-            )
+        fade_speed = 8.0
 
-        else:
-            # Remove immediately when leaving
-            # FIVE / FOCUS.
-            self.strength = 0.0
-            self.anchors.clear()
-
-    def _distance(
-        self,
-        a: EffectAnchor,
-        b: EffectAnchor,
-    ) -> float:
-        dx = b.x - a.x
-        dy = b.y - a.y
-
-        return math.sqrt(
-            dx * dx + dy * dy
+        self.strength += (
+            target_strength
+            - self.strength
+        ) * min(
+            1.0,
+            fade_speed * dt,
         )
 
     def render(self, frame):
+
         if self.strength <= 0.01:
             return frame
-
-        required = (
-            "thumb_tip",
-            "index_tip",
-            "middle_tip",
-            "ring_tip",
-            "pinky_tip",
-        )
-
-        if not all(
-            name in self.anchors
-            for name in required
-        ):
-            return frame
-
-        thumb = self.anchors["thumb_tip"]
 
         fingertip_names = (
             "index_tip",
             "middle_tip",
             "ring_tip",
             "pinky_tip",
+        )
+
+        color = (
+            255,
+            255,
+            255,
         )
 
         pulse = (
@@ -104,37 +81,52 @@ class FocusSystem:
             )
         )
 
-        # White in OpenCV BGR.
-        color = (
-            255,
-            255,
-            255,
+        glow_layer = np.zeros_like(
+            frame
         )
 
         # ---------------------------------
-        # Soft glow
+        # Glow
         # ---------------------------------
 
-        glow_layer = np.zeros_like(frame)
+        for anchors in (
+            self.active_hand_anchors
+        ):
 
-        for name in fingertip_names:
+            if not all(
+                name in anchors
+                for name in (
+                    "thumb_tip",
+                    "index_tip",
+                    "middle_tip",
+                    "ring_tip",
+                    "pinky_tip",
+                )
+            ):
+                continue
 
-            fingertip = self.anchors[name]
+            thumb = anchors[
+                "thumb_tip"
+            ]
 
-            cv2.line(
-                glow_layer,
-                (
-                    thumb.x,
-                    thumb.y,
-                ),
-                (
-                    fingertip.x,
-                    fingertip.y,
-                ),
-                color,
-                5,
-                cv2.LINE_AA,
-            )
+            for name in fingertip_names:
+
+                fingertip = anchors[name]
+
+                cv2.line(
+                    glow_layer,
+                    (
+                        thumb.x,
+                        thumb.y,
+                    ),
+                    (
+                        fingertip.x,
+                        fingertip.y,
+                    ),
+                    color,
+                    5,
+                    cv2.LINE_AA,
+                )
 
         glow_layer = cv2.GaussianBlur(
             glow_layer,
@@ -152,75 +144,81 @@ class FocusSystem:
         )
 
         # ---------------------------------
-        # Thin core lines
+        # Core lines + points
         # ---------------------------------
 
-        for name in fingertip_names:
+        for anchors in (
+            self.active_hand_anchors
+        ):
 
-            fingertip = self.anchors[name]
+            if not all(
+                name in anchors
+                for name in (
+                    "thumb_tip",
+                    "index_tip",
+                    "middle_tip",
+                    "ring_tip",
+                    "pinky_tip",
+                )
+            ):
+                continue
 
-            cv2.line(
+            thumb = anchors[
+                "thumb_tip"
+            ]
+
+            for name in fingertip_names:
+
+                fingertip = anchors[name]
+
+                cv2.line(
+                    frame,
+                    (
+                        thumb.x,
+                        thumb.y,
+                    ),
+                    (
+                        fingertip.x,
+                        fingertip.y,
+                    ),
+                    color,
+                    1,
+                    cv2.LINE_AA,
+                )
+
+            # Thumb
+            cv2.circle(
                 frame,
                 (
                     thumb.x,
                     thumb.y,
                 ),
-                (
-                    fingertip.x,
-                    fingertip.y,
-                ),
-                color,
-                1,
-                cv2.LINE_AA,
-            )
-
-        # ---------------------------------
-        # Thumb point
-        # ---------------------------------
-
-        thumb_radius = int(
-            4 + 3 * pulse
-        )
-
-        cv2.circle(
-            frame,
-            (
-                thumb.x,
-                thumb.y,
-            ),
-            thumb_radius,
-            color,
-            -1,
-            cv2.LINE_AA,
-        )
-
-        # ---------------------------------
-        # Fingertip points
-        # ---------------------------------
-
-        for name in fingertip_names:
-
-            fingertip = self.anchors[name]
-
-            radius = int(
-                3 + 2 * pulse
-            )
-
-            cv2.circle(
-                frame,
-                (
-                    fingertip.x,
-                    fingertip.y,
-                ),
-                radius,
+                int(4 + 3 * pulse),
                 color,
                 -1,
                 cv2.LINE_AA,
             )
+
+            # Fingertips
+            for name in fingertip_names:
+
+                fingertip = anchors[name]
+
+                cv2.circle(
+                    frame,
+                    (
+                        fingertip.x,
+                        fingertip.y,
+                    ),
+                    int(3 + 2 * pulse),
+                    color,
+                    -1,
+                    cv2.LINE_AA,
+                )
 
         return frame
 
     def reset(self):
         self.active = False
         self.strength = 0.0
-        self.anchors.clear()
+        self.active_hand_anchors.clear()

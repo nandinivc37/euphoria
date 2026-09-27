@@ -1,9 +1,13 @@
-import cv2
 import math
+
+import cv2
 import mediapipe as mp
 import numpy as np
 
-from hand_tracking.landmarks import Landmark, HandLandmarks
+from hand_tracking.landmarks import (
+    Landmark,
+    HandLandmarks,
+)
 
 
 class HandDetector:
@@ -20,9 +24,15 @@ class HandDetector:
 
         # MediaPipe Tasks API
         BaseOptions = mp.tasks.BaseOptions
-        HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
-        HandLandmarker = mp.tasks.vision.HandLandmarker
-        RunningMode = mp.tasks.vision.RunningMode
+        HandLandmarkerOptions = (
+            mp.tasks.vision.HandLandmarkerOptions
+        )
+        HandLandmarker = (
+            mp.tasks.vision.HandLandmarker
+        )
+        RunningMode = (
+            mp.tasks.vision.RunningMode
+        )
 
         base_options = BaseOptions(
             model_asset_path=model_path
@@ -32,22 +42,39 @@ class HandDetector:
             base_options=base_options,
             running_mode=RunningMode.VIDEO,
             num_hands=max_num_hands,
-            min_hand_detection_confidence=min_detection_confidence,
-            min_hand_presence_confidence=min_presence_confidence,
-            min_tracking_confidence=min_tracking_confidence,
+            min_hand_detection_confidence=(
+                min_detection_confidence
+            ),
+            min_hand_presence_confidence=(
+                min_presence_confidence
+            ),
+            min_tracking_confidence=(
+                min_tracking_confidence
+            ),
         )
 
-        self.detector = HandLandmarker.create_from_options(options)
+        self.detector = (
+            HandLandmarker.create_from_options(
+                options
+            )
+        )
 
-        # Hand connection definitions
         self.hand_connections = (
-            mp.tasks.vision.HandLandmarksConnections.HAND_CONNECTIONS
+            mp.tasks.vision
+            .HandLandmarksConnections
+            .HAND_CONNECTIONS
         )
+
+    # --------------------------------
+    # Extract landmarks + handedness
+    # --------------------------------
 
     def extract_landmarks(self, results):
         hands = []
 
-        for hand_landmarks in results.hand_landmarks:
+        for index, hand_landmarks in enumerate(
+            results.hand_landmarks
+        ):
             points = [
                 Landmark(
                     x=landmark.x,
@@ -57,9 +84,45 @@ class HandDetector:
                 for landmark in hand_landmarks
             ]
 
-            hands.append(HandLandmarks(points))
+            handedness = "Unknown"
+
+            if (
+                index < len(results.handedness)
+                and results.handedness[index]
+            ):
+                category = (
+                    results.handedness[index][0]
+                )
+
+                if getattr(
+                    category,
+                    "category_name",
+                    None,
+                ):
+                    handedness = (
+                        category.category_name
+                    )
+                elif getattr(
+                    category,
+                    "display_name",
+                    None,
+                ):
+                    handedness = (
+                        category.display_name
+                    )
+
+            hands.append(
+                HandLandmarks(
+                    points=points,
+                    handedness=handedness,
+                )
+            )
 
         return hands
+
+    # --------------------------------
+    # Process frame
+    # --------------------------------
 
     def process(self, frame):
         """
@@ -67,27 +130,32 @@ class HandDetector:
         MediaPipe HandLandmarkerResult.
         """
 
-        # OpenCV → RGB
         rgb_frame = cv2.cvtColor(
             frame,
             cv2.COLOR_BGR2RGB,
         )
 
-        # RGB numpy array → MediaPipe Image
         mp_image = mp.Image(
-            image_format=mp.ImageFormat.SRGB,
+            image_format=(
+                mp.ImageFormat.SRGB
+            ),
             data=rgb_frame,
         )
 
-        # VIDEO mode requires monotonically increasing timestamps.
         self.timestamp_ms += 33
 
-        results = self.detector.detect_for_video(
-            mp_image,
-            self.timestamp_ms,
+        results = (
+            self.detector.detect_for_video(
+                mp_image,
+                self.timestamp_ms,
+            )
         )
 
         return results
+
+    # --------------------------------
+    # Draw star
+    # --------------------------------
 
     def draw_star(
         self,
@@ -96,27 +164,40 @@ class HandDetector:
         outer_radius,
         color,
     ):
-        """
-        Draw a filled 5-point star.
-        """
-
         cx, cy = center
         points = []
 
         for i in range(10):
-            angle = -math.pi / 2 + i * math.pi / 5
+            angle = (
+                -math.pi / 2
+                + i * math.pi / 5
+            )
 
             if i % 2 == 0:
                 radius = outer_radius
             else:
-                radius = outer_radius * 0.45
+                radius = (
+                    outer_radius * 0.45
+                )
 
-            x = int(cx + radius * math.cos(angle))
-            y = int(cy + radius * math.sin(angle))
+            x = int(
+                cx
+                + radius * math.cos(angle)
+            )
 
-            points.append((x, y))
+            y = int(
+                cy
+                + radius * math.sin(angle)
+            )
 
-        points = np.array(points, dtype=np.int32)
+            points.append(
+                (x, y)
+            )
+
+        points = np.array(
+            points,
+            dtype=np.int32,
+        )
 
         cv2.fillPoly(
             frame,
@@ -124,27 +205,48 @@ class HandDetector:
             color,
         )
 
-    def draw_landmarks(self, frame, results):
-        """
-        Draw detected hand landmarks and connections
-        onto the OpenCV frame.
-        """
+    # --------------------------------
+    # Draw landmarks
+    # --------------------------------
 
+    def draw_landmarks(
+        self,
+        frame,
+        results,
+    ):
         height, width, _ = frame.shape
 
-        # Colors are written in OpenCV BGR format.
-        white = (255, 255, 255)
-        purple = (255, 0, 190)
+        # OpenCV uses BGR.
+        pink = (
+            180,
+            80,
+            255,
+        )
 
-        for hand_landmarks in results.hand_landmarks:
+        purple = (
+            255,
+            0,
+            190,
+        )
 
-            # -----------------------------
-            # Draw pink connections
-            # -----------------------------
+        for hand_landmarks in (
+            results.hand_landmarks
+        ):
 
-            for connection in self.hand_connections:
-                start = hand_landmarks[connection.start]
-                end = hand_landmarks[connection.end]
+            # --------------------------------
+            # Pink skeleton
+            # --------------------------------
+
+            for connection in (
+                self.hand_connections
+            ):
+                start = hand_landmarks[
+                    connection.start
+                ]
+
+                end = hand_landmarks[
+                    connection.end
+                ]
 
                 start_point = (
                     int(start.x * width),
@@ -160,19 +262,23 @@ class HandDetector:
                     frame,
                     start_point,
                     end_point,
-                    white,
+                    pink,
                     1,
                     cv2.LINE_AA,
                 )
 
-            # -----------------------------
-            # Draw purple landmarks
-            # -----------------------------
+            # --------------------------------
+            # Purple star landmarks
+            # --------------------------------
 
             for landmark in hand_landmarks:
                 point = (
-                    int(landmark.x * width),
-                    int(landmark.y * height),
+                    int(
+                        landmark.x * width
+                    ),
+                    int(
+                        landmark.y * height
+                    ),
                 )
 
                 self.draw_star(

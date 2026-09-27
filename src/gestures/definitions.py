@@ -19,4 +19,4 @@ class Gesture(Enum):
 
     FOCUS = "FOCUS"
 
-    SUPER = "SUPER"
+    #SUPER = "SUPER"

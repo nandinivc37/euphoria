@@ -21,53 +21,9 @@ class EffectsEngine:
         self.atmosphere = AtmosphereSystem()
         self.environment = EnvironmentSystem()
 
-        # --------------------------------
-        # Portal target
-        # --------------------------------
+        self.active_gesture = Gesture.UNKNOWN
 
-        portal_x = world_width // 2
-        portal_y = int(world_height * 0.56)
-
-        self.portal_target = EffectAnchor(
-            name="portal",
-            x=portal_x,
-            y=portal_y,
-        )
-
-        # --------------------------------
-        # TWO gesture targets
-        # --------------------------------
-
-        target_offset = int(
-            world_width * 0.055
-        )
-
-        self.two_left_target = (
-            EffectAnchor(
-                name="two_left_portal",
-                x=portal_x - target_offset,
-                y=portal_y,
-            )
-        )
-
-        self.two_right_target = (
-            EffectAnchor(
-                name="two_right_portal",
-                x=portal_x + target_offset,
-                y=portal_y,
-            )
-        )
-
-        self.active_gesture = (
-            Gesture.UNKNOWN
-        )
-
-        # --------------------------------
-        # Continuous emission timers
-        # --------------------------------
-
-        self.one_emit_timer = 0.0
-        self.two_emit_timer = 0.0
+    
 
     # --------------------------------
     # Particle helper
@@ -103,52 +59,15 @@ class EffectsEngine:
 
         anchors = event.anchors
 
-        # --------------------------------
-        # ONE
-        # --------------------------------
+    
 
-        if event.gesture == Gesture.ONE:
-
-            # Small initial burst.
-            self._emit(
-                anchors["index_tip"],
-                count=12,
-                color=(255, 120, 0),
-                target=self.portal_target,
-                target_strength=520.0,
-            )
-
-        # --------------------------------
-        # TWO
-        # --------------------------------
-
-        elif event.gesture == Gesture.TWO:
-
-            # Initial burst from index finger
-            # toward left side of portal.
-            self._emit(
-                anchors["index_tip"],
-                count=8,
-                color=(255, 0, 255),
-                target=self.two_left_target,
-                target_strength=500.0,
-            )
-
-            # Initial burst from middle finger
-            # toward right side of portal.
-            self._emit(
-                anchors["middle_tip"],
-                count=8,
-                color=(255, 0, 255),
-                target=self.two_right_target,
-                target_strength=500.0,
-            )
+        
 
         # --------------------------------
         # THREE
         # --------------------------------
 
-        elif event.gesture == Gesture.THREE:
+        if event.gesture == Gesture.THREE:
 
             for name in (
                 "index_tip",
@@ -231,7 +150,9 @@ class EffectsEngine:
         dt: float,
         gesture: Gesture,
         world_anchors: dict[str, EffectAnchor],
-        camera_anchors: dict[str, EffectAnchor],
+        active_camera_hands: list [
+            dict[str, EffectAnchor],
+        ],
     ):
         # --------------------------------
         # Environment
@@ -245,87 +166,7 @@ class EffectsEngine:
 
         self.particles.update(dt)
 
-        # --------------------------------
-        # Continuous ONE stream
-        # --------------------------------
-
-        if (
-            gesture == Gesture.ONE
-            and "index_tip" in world_anchors
-        ):
-            self.one_emit_timer += dt
-
-            emission_interval = 0.07
-
-            while (
-                self.one_emit_timer
-                >= emission_interval
-            ):
-                self.one_emit_timer -= (
-                    emission_interval
-                )
-
-                self._emit(
-                    world_anchors[
-                        "index_tip"
-                    ],
-                    count=2,
-                    color=(255, 120, 0),
-                    target=self.portal_target,
-                    target_strength=520.0,
-                )
-
-        else:
-            self.one_emit_timer = 0.0
-
-        # --------------------------------
-        # Continuous TWO streams
-        # --------------------------------
-
-        if (
-            gesture == Gesture.TWO
-            and
-            "index_tip" in world_anchors
-            and
-            "middle_tip" in world_anchors
-        ):
-            self.two_emit_timer += dt
-
-            emission_interval = 0.09
-
-            while (
-                self.two_emit_timer
-                >= emission_interval
-            ):
-                self.two_emit_timer -= (
-                    emission_interval
-                )
-
-                # Index → left portal target
-                self._emit(
-                    world_anchors[
-                        "index_tip"
-                    ],
-                    count=1,
-                    color=(255, 0, 255),
-                    target=self.two_left_target,
-                    target_strength=500.0,
-                )
-
-                # Middle → right portal target
-                self._emit(
-                    world_anchors[
-                        "middle_tip"
-                    ],
-                    count=1,
-                    color=(255, 0, 255),
-                    target=self.two_right_target,
-                    target_strength=500.0,
-                )
-
-        else:
-            self.two_emit_timer = 0.0
-
+     
         # --------------------------------
         # Beams disabled
         # --------------------------------
@@ -340,27 +181,18 @@ class EffectsEngine:
         # Camera web
         # --------------------------------
 
-        focus_active = (
-            gesture in (
-                Gesture.FOCUS,
-                Gesture.FIVE,
-            )
-            and all(
-                name in camera_anchors
-                for name in (
-                    "thumb_tip",
-                    "index_tip",
-                    "middle_tip",
-                    "ring_tip",
-                    "pinky_tip",
-                )
-            )
-        )
+        # focus_active = (
+        #     gesture in (
+        #         Gesture.FOCUS,
+        #         Gesture.FIVE,
+        #     )
+        #     and len(camera_anchors) > 0
+        # )
 
         self.focus.update(
             dt,
-            active=focus_active,
-            anchors=camera_anchors,
+            #active=focus_active,
+            active_hand_anchors=active_camera_hands,
         )
 
         # --------------------------------
@@ -424,5 +256,3 @@ class EffectsEngine:
             Gesture.UNKNOWN
         )
 
-        self.one_emit_timer = 0.0
-        self.two_emit_timer = 0.0

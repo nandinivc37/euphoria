@@ -11,6 +11,7 @@ class Landmark:
 @dataclass(frozen=True)
 class HandLandmarks:
     points: list[Landmark]
+    handedness: str = "Unknown"
 
     def __post_init__(self):
         if len(self.points) != 21:
@@ -45,3 +46,11 @@ class HandLandmarks:
     @property
     def pinky_tip(self) -> Landmark:
         return self.points[20]
+
+    @property
+    def is_left(self) -> bool:
+        return self.handedness.lower() == "left"
+
+    @property
+    def is_right(self) -> bool:
+        return self.handedness.lower() == "right"
