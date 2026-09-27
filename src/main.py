@@ -149,6 +149,8 @@ def main():
         time.perf_counter()
     )
 
+    pinch_states = {}
+
     try:
 
         while True:
@@ -216,6 +218,42 @@ def main():
             # This must be created BEFORE
             # processing the hands.
             active_camera_hands = []
+            right_palm_open = False
+            pinch_trigger = False
+
+            #-----------------------------
+            # Pinch detection
+            #-----------------------------
+
+            for hand_index, hand in enumerate(hands):
+
+                hand_gesture = classifier.classify(hand)
+
+                # pinch detection goes HERE
+                dx = hand.thumb_tip.x - hand.index_tip.x
+                dy = hand.thumb_tip.y - hand.index_tip.y
+
+                pinch_distance = (dx * dx + dy * dy) ** 0.5
+
+                hand_key = (
+                    hand.handedness
+                    if hand.handedness != "Unknown"
+                    else f"hand_{hand_index}"
+                )
+
+                was_pinched = pinch_states.get(
+                    hand_key,
+                    False,
+                )
+
+                if not was_pinched and pinch_distance < 0.045:
+                    pinch_states[hand_key] = True
+                    pinch_trigger = True
+
+                elif was_pinched and pinch_distance > 0.065:
+                    pinch_states[hand_key] = False
+
+            
 
             # -----------------------------
             # Process detected hands
@@ -234,6 +272,8 @@ def main():
                 raw_gesture = classifier.classify(
                     primary_hand
                 )
+
+                
 
                 # ---------------------------------
                 # Process every detected hand
@@ -256,6 +296,9 @@ def main():
                             hand
                         )
                     )
+
+                    if hand.is_right and hand_gesture == Gesture.FIVE:
+                        right_palm_open = True
 
                     # ---------------------------------
                     # World coordinates
@@ -416,6 +459,8 @@ def main():
                 stable_gesture,
                 world_anchors,
                 transformed_active_hands,
+                right_palm_open,
+                pinch_trigger,
             )
 
             # -----------------------------
